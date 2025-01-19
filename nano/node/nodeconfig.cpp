@@ -537,6 +537,8 @@ nano::error nano::node_config::deserialize_toml (nano::tomlconfig & toml)
 		toml.get<bool> ("allow_local_peers", allow_local_peers);
 		toml.get<unsigned> (signature_checker_threads_key, signature_checker_threads);
 
+		database_backend = get_database_backend (toml);
+
 		if (toml.has_key ("lmdb"))
 		{
 			auto lmdb_config_l (toml.get_required_child ("lmdb"));
@@ -657,6 +659,35 @@ void nano::node_config::deserialize_address (std::string const & entry_a, std::v
 			container_a.emplace_back (address, port);
 		}
 	}
+}
+
+std::string nano::node_config::serialize_database_backend (nano::database_backend mode_a) const
+{
+	switch (mode_a)
+	{
+		case nano::database_backend::rocksdb:
+			return "rocksdb";
+		case nano::database_backend::lmdb:
+			return "lmdb";
+	}
+	debug_assert (false);
+}
+
+nano::database_backend nano::node_config::get_database_backend (nano::tomlconfig & toml)
+{
+	if (toml.has_key ("database_backend"))
+	{
+		auto backend_string (toml.get<std::string> ("database_backend"));
+		if (backend_string == "rocksdb")
+			return database_backend::rocksdb;
+		if (backend_string == "lmdb")
+			return database_backend::lmdb;
+
+		toml.get_error ().set ("Unknown database_backend type: " + backend_string);
+		return nano::database_backend::lmdb;
+	}
+	// Default to LMDB
+	return nano::database_backend::lmdb;
 }
 
 nano::account nano::node_config::random_representative () const

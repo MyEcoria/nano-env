@@ -43,6 +43,12 @@ namespace nano
 {
 class tomlconfig;
 
+enum class database_backend
+{
+	lmdb,
+	rocksdb
+};
+
 /**
  * Node configuration
  */
@@ -133,6 +139,7 @@ public:
 	uint64_t max_pruning_depth{ 0 };
 	nano::rocksdb_config rocksdb_config;
 	nano::lmdb_config lmdb_config;
+	nano::database_backend database_backend{ std::string (std::getenv ("BACKEND") ? std::getenv ("BACKEND") : "") == "rocksdb" ? nano::database_backend::rocksdb : nano::database_backend::lmdb };
 	bool enable_upnp{ true };
 	std::size_t max_ledger_notifications{ 8 };
 
@@ -156,6 +163,8 @@ public:
 public:
 	/** Entry is ignored if it cannot be parsed as a valid address:port */
 	void deserialize_address (std::string const &, std::vector<std::pair<std::string, uint16_t>> &) const;
+	std::string serialize_database_backend (nano::database_backend) const;
+	nano::database_backend get_database_backend (nano::tomlconfig & toml);
 
 private:
 	static std::optional<unsigned> env_io_threads ();
