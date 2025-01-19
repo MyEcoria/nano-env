@@ -1304,7 +1304,7 @@ bool nano::ledger::migrate_lmdb_to_rocksdb (std::filesystem::path const & data_p
 
 	// Open rocksdb database
 	nano::node_config node_config;
-	node_config.rocksdb_config.enable = true;
+	node_config.database_backend = database_backend::rocksdb;
 	auto rocksdb_store = nano::make_store (logger, data_path_a, nano::dev::constants, false, true, node_config);
 
 	if (!rocksdb_store->init_error ())
