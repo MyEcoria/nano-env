@@ -23,5 +23,5 @@ class component;
 
 namespace nano
 {
-std::unique_ptr<nano::store::component> make_store (nano::logger &, std::filesystem::path const & path, nano::ledger_constants & constants, bool read_only = false, bool add_db_postfix = true, nano::node_config const & node_config = nano::node_config{});
+std::unique_ptr<nano::store::component> make_store (nano::logger &, std::filesystem::path const & path, nano::ledger_constants & constants, bool read_only = false, bool add_db_postfix = true, nano::node_config node_config = nano::node_config{});
 }
