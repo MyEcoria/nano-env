@@ -701,18 +701,18 @@ nano::database_backend nano::node_config::get_config_backend (nano::tomlconfig &
 
 nano::database_backend nano::node_config::get_default_backend ()
 {
-	auto backend_str = nano::env::get<std::string> ("BACKEND");
+	auto backend_str = nano::env::get<std::string> ("NANO_BACKEND");
 
 	if (backend_str.has_value ())
 	{
 		auto backend = deserialize_database_backend (backend_str.value ());
 		if (backend.has_value ())
 		{
-			std::cerr << "Database backend overridden by BACKEND environment variable: " << *backend_str << std::endl;
+			std::cerr << "Database backend overridden by NANO_BACKEND environment variable: " << *backend_str << std::endl;
 			return backend.value ();
 		}
 
-		std::cerr << "Unknown database backend in BACKEND environment variable: " << *backend_str << std::endl;
+		std::cerr << "Unknown database backend in NANO_BACKEND environment variable: " << *backend_str << std::endl;
 	}
 	return database_backend::lmdb;
 }

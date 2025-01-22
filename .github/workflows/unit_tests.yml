@@ -12,7 +12,7 @@ jobs:
         RELEASE:
           - ${{ startsWith(github.ref, 'refs/tags/') }}
     env:
-      BACKEND: ${{ matrix.BACKEND }}
+      NANO_BACKEND: ${{ matrix.BACKEND }}
       BUILD_TYPE: ${{ matrix.RELEASE && 'RelWithDebInfo' || 'Debug' }}
       TEST_USE_ROCKSDB: ${{ matrix.BACKEND == 'rocksdb' && '1' || '0' }}
       DEADLINE_SCALE_FACTOR: ${{ matrix.BACKEND == 'rocksdb' && '2' || '1' }}
