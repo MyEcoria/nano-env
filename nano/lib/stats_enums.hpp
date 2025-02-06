@@ -26,6 +26,7 @@ enum class type
 	vote_processor_tier,
 	vote_processor_overfill,
 	vote_rebroadcaster,
+	vote_rebroadcaster_tier,
 	election,
 	election_cleanup,
 	election_vote,
@@ -273,6 +274,15 @@ enum class detail
 	// vote processor
 	vote_overflow,
 	vote_ignored,
+
+	// vote_rebroadcaster
+	cleanup_tiers,
+	representatives_full,
+	representatives_erase_lowest,
+	representatives_erase_stale,
+	already_rebroadcasted,
+	rebroadcast_unnecessary,
+	rebroadcast_hashes,
 
 	// election specific
 	vote_new,
@@ -663,9 +673,6 @@ enum class detail
 	pruning_target,
 	pruned_count,
 	collect_targets,
-
-	// vote_rebroadcaster
-	rebroadcast_hashes,
 
 	_last // Must be the last enum
 };
