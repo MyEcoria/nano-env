@@ -1,9 +1,8 @@
 import requests
 import argparse
-from binascii import unhexlify
 from base64 import b32decode
-from binascii import hexlify, unhexlify
-
+from binascii import hexlify
+from datetime import date
 
 parser = argparse.ArgumentParser(
     description='Generate bootstrap representative weight file.')
@@ -44,10 +43,11 @@ supplymax /= int('1000000000000000000000000000000')
 supplymax = int(supplymax * args.limit)
 supplymax *= int('1000000000000000000000000000000')
 outputfile = 'bootstrap_weights_' + args.network + '.hpp'
+today = date.today().strftime("%d-%m-%Y")
 
 with open(outputfile, 'w') as of:
     of.write(f"#pragma once\n\n#include <string>\n#include <vector>\n\nnamespace nano::weights\n{{\n")
-    of.write(f"// Bootstrap weights for {args.network} network\n")
+    of.write(f"// Bootstrap weights for {args.network} network as of {today}\n")
     of.write(f"std::vector<std::pair<std::string, std::string>> preconfigured_weights_{args.network} = {{\n")
 
     total = int(0)
