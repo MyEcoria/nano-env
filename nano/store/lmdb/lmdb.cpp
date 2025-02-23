@@ -50,6 +50,8 @@ nano::store::lmdb::component::component (nano::logger & logger_a, std::filesyste
 {
 	if (!error)
 	{
+		logger.info (nano::log::type::lmdb, "Initializing ledger store: {}", database_path.string ());
+
 		debug_assert (path_a.filename () == "data.ldb");
 
 		auto is_fully_upgraded (false);
@@ -111,12 +113,18 @@ nano::store::lmdb::component::component (nano::logger & logger_a, std::filesyste
 			open_databases (error, transaction, 0);
 		}
 	}
+	else
+	{
+		logger.critical (nano::log::type::lmdb, "Failed to initialize database environment: {}", database_path.string ());
+	}
 }
 
 bool nano::store::lmdb::component::vacuum_after_upgrade (std::filesystem::path const & path_a, nano::lmdb_config const & lmdb_config_a)
 {
 	// Vacuum the database. This is not a required step and may actually fail if there isn't enough storage space.
 	auto vacuum_path = path_a.parent_path () / "vacuumed.ldb";
+
+	logger.info (nano::log::type::lmdb, "Creating vacuumed ledger file: {}", vacuum_path.string ());
 
 	auto vacuum_success = copy_db (vacuum_path);
 	if (vacuum_success)

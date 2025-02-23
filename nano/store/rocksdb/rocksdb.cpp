@@ -77,8 +77,11 @@ nano::store::rocksdb::component::component (nano::logger & logger_a, std::filesy
 
 	if (error)
 	{
+		logger.critical (nano::log::type::rocksdb, "Failed to create database directory: {}", path_a.string ());
 		return;
 	}
+
+	logger.info (nano::log::type::rocksdb, "Initializing ledger store: {}", database_path.string ());
 
 	debug_assert (path_a.filename () == "rocksdb");
 

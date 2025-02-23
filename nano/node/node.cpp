@@ -295,6 +295,7 @@ nano::node::node (std::shared_ptr<boost::asio::io_context> io_ctx_a, std::filesy
 		logger.info (nano::log::type::node, "Active network: {}", network_label);
 		logger.info (nano::log::type::node, "Database backend: {}", store.vendor_get ());
 		logger.info (nano::log::type::node, "Data path: {}", application_path.string ());
+		logger.info (nano::log::type::node, "Ledger path: {}", store.get_database_path ().string ());
 		logger.info (nano::log::type::node, "Work pool threads: {} ({})", work.threads.size (), (work.opencl ? "OpenCL" : "CPU"));
 		logger.info (nano::log::type::node, "Work peers: {}", config.work_peers.size ());
 		logger.info (nano::log::type::node, "Node ID: {}", node_id.pub.to_node_id ());
@@ -357,8 +358,8 @@ nano::node::node (std::shared_ptr<boost::asio::io_context> io_ctx_a, std::filesy
 			ledger.bootstrap_weight_max_blocks = bootstrap_weights.first;
 			ledger.bootstrap_weights = bootstrap_weights.second;
 
-			logger.info (nano::log::type::node, "Initial bootstrap height: {}", ledger.bootstrap_weight_max_blocks);
-			logger.info (nano::log::type::node, "Current ledger height:    {}", ledger.block_count ());
+			logger.info (nano::log::type::node, "Initial bootstrap height: {:>10}", ledger.bootstrap_weight_max_blocks);
+			logger.info (nano::log::type::node, "Current ledger height:    {:>10}", ledger.block_count ());
 
 			// Use bootstrap weights if initial bootstrap is not completed
 			const bool use_bootstrap_weight = !ledger.bootstrap_height_reached ();
@@ -409,6 +410,11 @@ nano::node::node (std::shared_ptr<boost::asio::io_context> io_ctx_a, std::filesy
 			}
 		});
 	}
+	else
+	{
+		logger.error (nano::log::type::node, "Failed to initialize node");
+	}
+
 	node_initialized_latch.count_down ();
 }
 
@@ -987,29 +993,36 @@ nano::container_info nano::node::container_info () const
 
 nano::keypair nano::load_or_create_node_id (std::filesystem::path const & application_path)
 {
+	auto & logger = nano::default_logger ();
+
+	logger.info (nano::log::type::init, "Using data directory: {}", application_path.string ());
+
 	auto node_private_key_path = application_path / "node_id_private.key";
 	std::ifstream ifs (node_private_key_path.c_str ());
 	if (ifs.good ())
 	{
-		nano::default_logger ().info (nano::log::type::init, "Reading node id from: '{}'", node_private_key_path.string ());
-
 		std::string node_private_key;
 		ifs >> node_private_key;
 		release_assert (node_private_key.size () == 64);
 		nano::keypair kp = nano::keypair (node_private_key);
+
+		logger.info (nano::log::type::init, "Loaded local node ID: {}",
+		kp.pub.to_node_id ());
+
 		return kp;
 	}
 	else
 	{
-		// no node_id found, generate new one
-		nano::default_logger ().info (nano::log::type::init, "Generating a new node id, saving to: '{}'", node_private_key_path.string ());
-
 		nano::keypair kp;
 		std::ofstream ofs (node_private_key_path.c_str (), std::ofstream::out | std::ofstream::trunc);
 		ofs << kp.prv.to_string () << std::endl
 			<< std::flush;
 		ofs.close ();
 		release_assert (!ofs.fail ());
+
+		logger.info (nano::log::type::init, "Generated new local node ID: {}",
+		kp.pub.to_node_id ());
+
 		return kp;
 	}
 }

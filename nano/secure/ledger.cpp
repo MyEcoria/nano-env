@@ -752,6 +752,8 @@ auto nano::ledger::tx_begin_read () const -> secure::read_transaction
 
 void nano::ledger::initialize (nano::generate_cache_flags const & generate_cache_flags_a)
 {
+	logger.info (nano::log::type::ledger, "Loading ledger, this may take a while...");
+
 	if (generate_cache_flags_a.reps || generate_cache_flags_a.account_count || generate_cache_flags_a.block_count)
 	{
 		store.account.for_each_par (
@@ -792,8 +794,16 @@ void nano::ledger::initialize (nano::generate_cache_flags const & generate_cache
 		});
 	}
 
-	auto transaction (store.tx_begin_read ());
-	cache.pruned_count = store.pruned.count (transaction);
+	{
+		auto transaction (store.tx_begin_read ());
+		cache.pruned_count = store.pruned.count (transaction);
+	}
+
+	logger.info (nano::log::type::ledger, "Block count:    {:>10}", cache.block_count.load ());
+	logger.info (nano::log::type::ledger, "Cemented count: {:>10}", cache.cemented_count.load ());
+	logger.info (nano::log::type::ledger, "Account count:  {:>10}", cache.account_count.load ());
+	logger.info (nano::log::type::ledger, "Pruned count:   {:>10}", cache.pruned_count.load ());
+	logger.info (nano::log::type::ledger, "Representative count: {}", cache.rep_weights.size ());
 }
 
 bool nano::ledger::unconfirmed_exists (secure::transaction const & transaction, nano::block_hash const & hash)
