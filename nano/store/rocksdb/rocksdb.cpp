@@ -63,6 +63,7 @@ nano::store::rocksdb::component::component (nano::logger & logger_a, std::filesy
 	final_vote_store{ *this },
 	version_store{ *this },
 	rep_weight_store{ *this },
+	database_path{ path_a },
 	logger{ logger_a },
 	constants{ constants },
 	rocksdb_config{ rocksdb_config_a },
@@ -419,6 +420,11 @@ nano::store::read_transaction nano::store::rocksdb::component::tx_begin_read () 
 std::string nano::store::rocksdb::component::vendor_get () const
 {
 	return boost::str (boost::format ("RocksDB %1%.%2%.%3%") % ROCKSDB_MAJOR % ROCKSDB_MINOR % ROCKSDB_PATCH);
+}
+
+std::filesystem::path nano::store::rocksdb::component::get_database_path () const
+{
+	return database_path;
 }
 
 std::vector<::rocksdb::ColumnFamilyDescriptor> nano::store::rocksdb::component::get_single_column_family (std::string cf_name) const

@@ -68,6 +68,7 @@ public:
 	store::read_transaction tx_begin_read () const override;
 
 	std::string vendor_get () const override;
+	std::filesystem::path get_database_path () const override;
 
 	void serialize_mdb_tracker (boost::property_tree::ptree &, std::chrono::milliseconds, std::chrono::milliseconds) override;
 
@@ -78,8 +79,9 @@ public:
 	unsigned max_block_write_batch_num () const override;
 
 private:
-	nano::logger & logger;
 	bool error{ false };
+	std::filesystem::path const database_path;
+	nano::logger & logger;
 
 public:
 	nano::store::lmdb::env env;

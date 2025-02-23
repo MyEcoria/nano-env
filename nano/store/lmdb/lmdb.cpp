@@ -42,6 +42,7 @@ nano::store::lmdb::component::component (nano::logger & logger_a, std::filesyste
 	final_vote_store{ *this },
 	version_store{ *this },
 	rep_weight_store{ *this },
+	database_path{ path_a },
 	logger{ logger_a },
 	env (error, path_a, nano::store::lmdb::env::options::make ().set_config (lmdb_config_a).set_use_no_mem_init (true)),
 	mdb_txn_tracker (logger_a, txn_tracking_config_a, block_processor_batch_max_time_a),
@@ -176,6 +177,11 @@ nano::store::read_transaction nano::store::lmdb::component::tx_begin_read () con
 std::string nano::store::lmdb::component::vendor_get () const
 {
 	return boost::str (boost::format ("LMDB %1%.%2%.%3%") % MDB_VERSION_MAJOR % MDB_VERSION_MINOR % MDB_VERSION_PATCH);
+}
+
+std::filesystem::path nano::store::lmdb::component::get_database_path () const
+{
+	return database_path;
 }
 
 nano::store::lmdb::txn_callbacks nano::store::lmdb::component::create_txn_callbacks () const
