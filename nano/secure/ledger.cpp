@@ -1487,7 +1487,7 @@ bool nano::ledger::migrate_lmdb_to_rocksdb (std::filesystem::path const & data_p
 			}
 		}
 
-		logger.info (nano::log::type::ledger, "Migration completed. Make sure to update [node.database_backend] to 'rocksdb' in config.toml");
+		logger.info (nano::log::type::ledger, "Migration completed. Make sure to set `database_backend` under [node] to 'rocksdb' in config-node.toml");
 		logger.info (nano::log::type::ledger, "After confirming correct node operation, the data.ldb file can be deleted if no longer required");
 	}
 	else

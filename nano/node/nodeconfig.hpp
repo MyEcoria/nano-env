@@ -49,6 +49,9 @@ enum class database_backend
 	rocksdb
 };
 
+std::string to_string (database_backend);
+std::optional<database_backend> parse_database_backend (std::string const &);
+
 /**
  * Node configuration
  */
@@ -139,7 +142,7 @@ public:
 	uint64_t max_pruning_depth{ 0 };
 	nano::rocksdb_config rocksdb_config;
 	nano::lmdb_config lmdb_config;
-	nano::database_backend database_backend{ get_default_backend () };
+	nano::database_backend database_backend{ env_database_backend ().value_or (nano::database_backend::lmdb) };
 	bool enable_upnp{ true };
 	std::size_t max_ledger_notifications{ 8 };
 
@@ -163,12 +166,9 @@ public:
 public:
 	/** Entry is ignored if it cannot be parsed as a valid address:port */
 	void deserialize_address (std::string const &, std::vector<std::pair<std::string, uint16_t>> &) const;
-	std::string serialize_database_backend (nano::database_backend) const;
-	std::optional<nano::database_backend> deserialize_database_backend (std::string backend_str) const;
-	nano::database_backend get_config_backend (nano::tomlconfig & toml);
-	nano::database_backend get_default_backend ();
 
-private:
+public:
+	static std::optional<nano::database_backend> env_database_backend ();
 	static std::optional<unsigned> env_io_threads ();
 };
 
