@@ -1334,7 +1334,7 @@ bool nano::ledger::migrate_lmdb_to_rocksdb (std::filesystem::path const & data_p
 
 	// Open rocksdb database
 	nano::node_config node_config;
-	node_config.rocksdb_config.enable = true;
+	node_config.database_backend = database_backend::rocksdb;
 	auto rocksdb_store = nano::make_store (logger, data_path_a, nano::dev::constants, false, true, node_config);
 
 	if (!rocksdb_store->init_error ())
@@ -1517,7 +1517,7 @@ bool nano::ledger::migrate_lmdb_to_rocksdb (std::filesystem::path const & data_p
 			}
 		}
 
-		logger.info (nano::log::type::ledger, "Migration completed. Make sure to enable RocksDB in the config file under [node.rocksdb]");
+		logger.info (nano::log::type::ledger, "Migration completed. Make sure to set `database_backend` under [node] to 'rocksdb' in config-node.toml");
 		logger.info (nano::log::type::ledger, "After confirming correct node operation, the data.ldb file can be deleted if no longer required");
 	}
 	else
