@@ -1245,7 +1245,7 @@ bool nano::wallet::search_receivable (store::transaction const & wallet_transact
 	auto result (!store.valid_password (wallet_transaction_a));
 	if (!result)
 	{
-		logger.info (nano::log::type::wallet, "Beginning receivable block search");
+		logger.debug (nano::log::type::wallet, "Beginning receivable block search");
 
 		for (auto i (store.begin (wallet_transaction_a)), n (store.end (wallet_transaction_a)); i != n; ++i)
 		{
@@ -1284,11 +1284,11 @@ bool nano::wallet::search_receivable (store::transaction const & wallet_transact
 			}
 		}
 
-		logger.info (nano::log::type::wallet, "Receivable block search phase complete");
+		logger.debug (nano::log::type::wallet, "Receivable block search phase complete");
 	}
 	else
 	{
-		logger.warn (nano::log::type::wallet, "Unable to search receivable blocks, wallet is locked");
+		logger.warn (nano::log::type::wallet, "Unable to search receivable blocks, wallet is locked. Blocks won't be auto-received until the wallet is unlocked");
 	}
 	return result;
 }
@@ -1431,6 +1431,8 @@ nano::wallets::wallets (bool error_a, nano::node & node_a) :
 	env (boost::polymorphic_downcast<nano::mdb_wallets_store *> (node_a.wallets_store_impl.get ())->environment),
 	stopped (false)
 {
+	logger.info (nano::log::type::wallet, "Loading wallets from: {}", env.database_path.string ());
+
 	nano::unique_lock<nano::mutex> lock{ mutex };
 	if (!error_a)
 	{
@@ -1462,6 +1464,9 @@ nano::wallets::wallets (bool error_a, nano::node & node_a) :
 			}
 		}
 	}
+
+	logger.info (nano::log::type::wallet, "Found {} wallet(s)", items.size ());
+
 	// Backup before upgrade wallets
 	bool backup_required (false);
 	if (node.config.backup_before_upgrade)
