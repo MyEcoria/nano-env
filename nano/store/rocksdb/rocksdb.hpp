@@ -70,6 +70,7 @@ public:
 	store::read_transaction tx_begin_read () const override;
 
 	std::string vendor_get () const override;
+	std::filesystem::path get_database_path () const override;
 
 	uint64_t count (store::transaction const & transaction_a, tables table_a) const override;
 
@@ -91,6 +92,7 @@ public:
 
 private:
 	bool error{ false };
+	std::filesystem::path const database_path;
 	nano::logger & logger;
 	nano::ledger_constants & constants;
 	::rocksdb::TransactionDB * transaction_db = nullptr;

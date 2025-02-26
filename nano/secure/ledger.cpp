@@ -717,11 +717,12 @@ void representative_visitor::state_block (nano::state_block const & block_a)
  * ledger
  */
 
-nano::ledger::ledger (nano::store::component & store_a, nano::stats & stat_a, nano::ledger_constants & constants, nano::generate_cache_flags const & generate_cache_flags_a, nano::uint128_t min_rep_weight_a) :
-	constants{ constants },
+nano::ledger::ledger (nano::store::component & store_a, nano::ledger_constants & constants_a, nano::stats & stats_a, nano::logger & logger_a, nano::generate_cache_flags const & generate_cache_flags_a, nano::uint128_t min_rep_weight_a) :
+	constants{ constants_a },
 	store{ store_a },
 	cache{ store_a.rep_weight, min_rep_weight_a },
-	stats{ stat_a },
+	stats{ stats_a },
+	logger{ logger_a },
 	any_impl{ std::make_unique<ledger_set_any> (*this) },
 	confirmed_impl{ std::make_unique<ledger_set_confirmed> (*this) },
 	any{ *any_impl },
@@ -751,6 +752,8 @@ auto nano::ledger::tx_begin_read () const -> secure::read_transaction
 
 void nano::ledger::initialize (nano::generate_cache_flags const & generate_cache_flags_a)
 {
+	logger.info (nano::log::type::ledger, "Loading ledger, this may take a while...");
+
 	if (generate_cache_flags_a.reps || generate_cache_flags_a.account_count || generate_cache_flags_a.block_count)
 	{
 		store.account.for_each_par (
@@ -791,8 +794,16 @@ void nano::ledger::initialize (nano::generate_cache_flags const & generate_cache
 		});
 	}
 
-	auto transaction (store.tx_begin_read ());
-	cache.pruned_count = store.pruned.count (transaction);
+	{
+		auto transaction (store.tx_begin_read ());
+		cache.pruned_count = store.pruned.count (transaction);
+	}
+
+	logger.info (nano::log::type::ledger, "Block count:    {:>10}", cache.block_count.load ());
+	logger.info (nano::log::type::ledger, "Cemented count: {:>10}", cache.cemented_count.load ());
+	logger.info (nano::log::type::ledger, "Account count:  {:>10}", cache.account_count.load ());
+	logger.info (nano::log::type::ledger, "Pruned count:   {:>10}", cache.pruned_count.load ());
+	logger.info (nano::log::type::ledger, "Representative count: {}", cache.rep_weights.size ());
 }
 
 bool nano::ledger::unconfirmed_exists (secure::transaction const & transaction, nano::block_hash const & hash)
@@ -1307,8 +1318,6 @@ auto nano::ledger::block_priority (nano::secure::transaction const & transaction
 // A precondition is that the store is an LMDB store
 bool nano::ledger::migrate_lmdb_to_rocksdb (std::filesystem::path const & data_path_a) const
 {
-	nano::logger logger;
-
 	logger.info (nano::log::type::ledger, "Migrating LMDB database to RocksDB. This will take a while...");
 
 	std::filesystem::space_info si = std::filesystem::space (data_path_a);

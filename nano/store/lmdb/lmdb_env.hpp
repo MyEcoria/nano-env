@@ -64,5 +64,6 @@ public:
 	MDB_txn * tx (store::transaction const & transaction_a) const;
 	std::unique_ptr<MDB_env, decltype (&mdb_env_close)> environment{ nullptr, mdb_env_close };
 	nano::id_t const store_id{ nano::next_id () };
+	std::filesystem::path const database_path;
 };
 } // namespace nano::store::lmdb

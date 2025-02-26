@@ -518,9 +518,10 @@ TEST (history, short_text)
 	}
 	auto wallet (std::make_shared<nano_qt::wallet> (*test_application, processor, *system.nodes[0], system.wallet (0), account));
 	nano::logger logger;
+	nano::stats stats{ logger };
 	auto store = nano::make_store (logger, nano::unique_path (), nano::dev::constants);
 	ASSERT_TRUE (!store->init_error ());
-	nano::ledger ledger (*store, system.nodes[0]->stats, nano::dev::constants);
+	nano::ledger ledger (*store, nano::dev::constants, stats, logger);
 	{
 		auto transaction (ledger.tx_begin_write ());
 		store->initialize (transaction, ledger.cache, ledger.constants);
@@ -556,9 +557,10 @@ TEST (history, pruned_source)
 	}
 	auto wallet (std::make_shared<nano_qt::wallet> (*test_application, processor, *system.nodes[0], system.wallet (0), account));
 	nano::logger logger;
+	nano::stats stats{ logger };
 	auto store = nano::make_store (logger, nano::unique_path (), nano::dev::constants);
 	ASSERT_TRUE (!store->init_error ());
-	nano::ledger ledger (*store, system.nodes[0]->stats, nano::dev::constants);
+	nano::ledger ledger (*store, nano::dev::constants, stats, logger);
 	ledger.pruning = true;
 	nano::block_hash next_pruning;
 	// Basic pruning for legacy blocks. Previous block is pruned, source is pruned

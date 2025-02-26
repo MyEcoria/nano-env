@@ -89,6 +89,7 @@ namespace store
 		virtual read_transaction tx_begin_read () const = 0;
 
 		virtual std::string vendor_get () const = 0;
+		virtual std::filesystem::path get_database_path () const = 0;
 	};
 } // namespace store
 } // namespace nano
