@@ -15,6 +15,7 @@ enum class type
 	test,
 	error,
 	message,
+	message_loopback,
 	block,
 	ledger,
 	ledger_notifications,

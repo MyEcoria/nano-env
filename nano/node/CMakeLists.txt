@@ -167,6 +167,8 @@ add_library(
   transport/fwd.hpp
   transport/inproc.hpp
   transport/inproc.cpp
+  transport/loopback.cpp
+  transport/loopback.hpp
   transport/message_deserializer.hpp
   transport/message_deserializer.cpp
   transport/tcp_channels.hpp
