@@ -114,7 +114,7 @@ TEST (vote_processor, weights)
 	auto & node (*system.nodes[0]);
 
 	// Create representatives of different weight levels
-	auto const stake = node.config.online_weight_minimum.number ();
+	auto const stake = nano::dev::genesis->balance ().number ();
 	auto const level0 = stake / 5000; // 0.02%
 	auto const level1 = stake / 500; // 0.2%
 	auto const level2 = stake / 50; // 2%

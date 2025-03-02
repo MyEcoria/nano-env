@@ -2783,9 +2783,8 @@ TEST (node, rollback_vote_self)
 		system.wallet (0)->insert_adhoc (nano::dev::genesis_key.prv);
 
 		// Without the rollback being finished, the aggregator should not reply with any vote
-		auto channel = std::make_shared<nano::transport::fake::channel> (node);
-		node.aggregator.request ({ { send2->hash (), send2->root () } }, channel);
-		ASSERT_ALWAYS_EQ (1s, node.stats.count (nano::stat::type::request_aggregator_replies), 0);
+		node.aggregator.request ({ { send2->hash (), send2->root () } }, node.loopback_channel);
+		ASSERT_ALWAYS (1s, !election->votes ().contains (nano::dev::genesis_key.pub));
 
 		// Going out of the scope allows the rollback to complete
 	}

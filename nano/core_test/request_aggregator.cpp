@@ -28,7 +28,9 @@ TEST (request_aggregator, one)
 	nano::test::system system;
 	nano::node_config node_config = system.default_config ();
 	node_config.backlog_scan.enable = false;
-	auto & node (*system.add_node (node_config));
+	nano::node_flags node_flags;
+	node_flags.disable_rep_crawler = true;
+	auto & node (*system.add_node (node_config, node_flags));
 	system.wallet (0)->insert_adhoc (nano::dev::genesis_key.prv);
 	nano::block_builder builder;
 	auto send1 = builder
@@ -77,7 +79,9 @@ TEST (request_aggregator, one_update)
 	nano::test::system system;
 	nano::node_config node_config = system.default_config ();
 	node_config.backlog_scan.enable = false;
-	auto & node (*system.add_node (node_config));
+	nano::node_flags node_flags;
+	node_flags.disable_rep_crawler = true;
+	auto & node (*system.add_node (node_config, node_flags));
 	system.wallet (0)->insert_adhoc (nano::dev::genesis_key.prv);
 	nano::keypair key1;
 	auto send1 = nano::state_block_builder ()
@@ -143,7 +147,9 @@ TEST (request_aggregator, two)
 	nano::test::system system;
 	nano::node_config node_config = system.default_config ();
 	node_config.backlog_scan.enable = false;
-	auto & node (*system.add_node (node_config));
+	nano::node_flags node_flags;
+	node_flags.disable_rep_crawler = true;
+	auto & node (*system.add_node (node_config, node_flags));
 	system.wallet (0)->insert_adhoc (nano::dev::genesis_key.prv);
 	nano::keypair key1;
 	nano::state_block_builder builder;
@@ -273,7 +279,9 @@ TEST (request_aggregator, split)
 	nano::test::system system;
 	nano::node_config node_config = system.default_config ();
 	node_config.backlog_scan.enable = false;
-	auto & node (*system.add_node (node_config));
+	nano::node_flags node_flags;
+	node_flags.disable_rep_crawler = true;
+	auto & node (*system.add_node (node_config, node_flags));
 	system.wallet (0)->insert_adhoc (nano::dev::genesis_key.prv);
 	std::vector<std::pair<nano::block_hash, nano::root>> request;
 	std::vector<std::shared_ptr<nano::block>> blocks;
@@ -328,7 +336,9 @@ TEST (request_aggregator, channel_max_queue)
 	nano::node_config node_config = system.default_config ();
 	node_config.backlog_scan.enable = false;
 	node_config.request_aggregator.max_queue = 0;
-	auto & node (*system.add_node (node_config));
+	nano::node_flags node_flags;
+	node_flags.disable_rep_crawler = true;
+	auto & node (*system.add_node (node_config, node_flags));
 	system.wallet (0)->insert_adhoc (nano::dev::genesis_key.prv);
 	nano::block_builder builder;
 	auto send1 = builder
@@ -390,6 +400,7 @@ TEST (request_aggregator, cannot_vote)
 	nano::test::system system;
 	nano::node_flags flags;
 	flags.disable_request_loop = true;
+	flags.disable_rep_crawler = true;
 	auto & node (*system.add_node (flags));
 	nano::state_block_builder builder;
 	auto send1 = builder.make_block ()
@@ -548,7 +559,12 @@ TEST (request_aggregator, forked_open)
 TEST (request_aggregator, epoch_conflict)
 {
 	nano::test::system system;
-	auto & node = *system.add_node ();
+
+	nano::node_flags node_flags;
+	// Workaround for vote spacing dropping requests with the same root
+	// FIXME: Vote spacing should use full qualified root
+	node_flags.disable_rep_crawler = true;
+	auto & node = *system.add_node (node_flags);
 
 	// Voting needs a rep key set up on the node
 	system.wallet (0)->insert_adhoc (nano::dev::genesis_key.prv);
