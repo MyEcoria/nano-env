@@ -867,6 +867,9 @@ nano::websocket::message nano::websocket::message_builder::vote_received (std::s
 		case nano::vote_code::ignored:
 			vote_type = "ignored";
 			break;
+		case nano::vote_code::late:
+			vote_type = "late";
+			break;
 		case nano::vote_code::invalid:
 			debug_assert (false);
 			break;

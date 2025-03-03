@@ -18,6 +18,7 @@ enum class vote_code
 	vote, // Vote has the highest timestamp
 	indeterminate, // Unknown if replay or vote
 	ignored, // Vote is valid, but got ingored (e.g. due to cooldown)
+	late, // Vote is late, the election is already confirmed and present in the recently confirmed set
 };
 
 nano::stat::detail to_stat_detail (vote_code);

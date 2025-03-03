@@ -270,6 +270,7 @@ enum class detail
 	valid,
 	replay,
 	indeterminate,
+	late,
 
 	// vote processor
 	vote_overflow,
