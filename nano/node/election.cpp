@@ -23,9 +23,9 @@ std::chrono::milliseconds nano::election::base_latency () const
  * election
  */
 
-nano::election::election (nano::node & node_a, std::shared_ptr<nano::block> const & block_a, std::function<void (std::shared_ptr<nano::block> const &)> const & confirmation_action_a, std::function<void (nano::account const &)> const & live_vote_action_a, nano::election_behavior election_behavior_a) :
+nano::election::election (nano::node & node_a, std::shared_ptr<nano::block> const & block_a, std::function<void (std::shared_ptr<nano::block> const &)> const & confirmation_action_a, std::function<void (nano::account const &)> const & vote_action_a, nano::election_behavior election_behavior_a) :
 	confirmation_action (confirmation_action_a),
-	live_vote_action (live_vote_action_a),
+	vote_action (vote_action_a),
 	node (node_a),
 	behavior_m (election_behavior_a),
 	status (block_a),
@@ -502,7 +502,8 @@ std::shared_ptr<nano::block> nano::election::find (nano::block_hash const & hash
 
 nano::vote_code nano::election::vote (nano::account const & rep, uint64_t timestamp_a, nano::block_hash const & block_hash_a, nano::vote_source vote_source_a)
 {
-	auto weight = node.ledger.weight (rep);
+	auto const weight = node.ledger.weight (rep);
+
 	if (!node.network_params.network.is_dev_network () && weight <= node.minimum_principal_weight ())
 	{
 		return vote_code::indeterminate;
@@ -538,11 +539,8 @@ nano::vote_code nano::election::vote (nano::account const & rep, uint64_t timest
 		}
 	}
 
+	// Update voter list entry
 	last_votes[rep] = { std::chrono::steady_clock::now (), timestamp_a, block_hash_a };
-	if (vote_source_a != vote_source::cache)
-	{
-		live_vote_action (rep);
-	}
 
 	node.stats.inc (nano::stat::type::election, nano::stat::detail::vote);
 	node.stats.inc (nano::stat::type::election_vote, to_stat_detail (vote_source_a));
@@ -564,6 +562,12 @@ nano::vote_code nano::election::vote (nano::account const & rep, uint64_t timest
 	nano::vote::is_final_timestamp (timestamp_a),
 	weight,
 	to_string (vote_source_a));
+
+	// This must execute before calculating the vote tally to ensure accurate online weight and quorum numbers are used
+	if (vote_action)
+	{
+		vote_action (rep);
+	}
 
 	if (!confirmed_locked ())
 	{

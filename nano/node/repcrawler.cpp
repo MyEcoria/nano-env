@@ -38,6 +38,11 @@ void nano::rep_crawler::start ()
 {
 	debug_assert (!thread.joinable ());
 
+	if (node.flags.disable_rep_crawler)
+	{
+		return;
+	}
+
 	thread = std::thread{ [this] () {
 		nano::thread_role::set (nano::thread_role::name::rep_crawler);
 		run ();
@@ -130,11 +135,16 @@ void nano::rep_crawler::validate_and_process (nano::unique_lock<nano::mutex> & l
 
 		if (inserted)
 		{
-			logger.info (nano::log::type::rep_crawler, "Found representative: {} at: {}", vote->account.to_account (), channel->to_string ());
+			logger.info (nano::log::type::rep_crawler, "Found representative: {} at: {}",
+			vote->account.to_account (),
+			channel->to_string ());
 		}
 		if (updated)
 		{
-			logger.warn (nano::log::type::rep_crawler, "Updated representative: {} at: {} (was at: {})", vote->account.to_account (), channel->to_string (), prev_channel->to_string ());
+			logger.warn (nano::log::type::rep_crawler, "Updated representative: {} at: {} (was at: {})",
+			vote->account.to_account (),
+			channel->to_string (),
+			prev_channel->to_string ());
 		}
 	}
 }
@@ -206,6 +216,13 @@ void nano::rep_crawler::run ()
 
 			lock.unlock ();
 			query (targets);
+			lock.lock ();
+		}
+
+		// Query local representative
+		{
+			lock.unlock ();
+			query (node.loopback_channel);
 			lock.lock ();
 		}
 

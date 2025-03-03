@@ -33,7 +33,7 @@ private:
 	std::chrono::steady_clock::time_point next_broadcast = { std::chrono::steady_clock::now () };
 
 public:
-	vote_generator (nano::node_config const &, nano::node &, nano::ledger &, nano::wallets &, nano::vote_processor &, nano::local_vote_history &, nano::network &, nano::stats &, nano::logger &, bool is_final);
+	vote_generator (nano::node_config const &, nano::node &, nano::ledger &, nano::wallets &, nano::vote_processor &, nano::local_vote_history &, nano::network &, nano::stats &, nano::logger &, bool is_final, std::shared_ptr<nano::transport::channel> inproc_channel);
 	~vote_generator ();
 
 	/** Queue items for vote generation, or broadcast votes already in cache */

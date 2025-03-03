@@ -40,7 +40,9 @@ public:
 	nano::uint128_t delta () const;
 	/** List of online representatives, both the currently sampling ones and the ones observed in the previous sampling period */
 	std::vector<nano::account> list ();
+
 	void clear ();
+
 	nano::container_info container_info () const;
 
 public:
@@ -57,7 +59,7 @@ private:
 	void run ();
 	/** Called periodically to sample online weight */
 	void sample ();
-	bool trim ();
+	void trim ();
 	/** Remove old records from the database */
 	void trim_trended (nano::store::write_transaction const &);
 	/** Iterate over all database samples and remove invalid records. This is meant to clean potential leftovers from previous versions. */

@@ -39,6 +39,7 @@
 #include <nano/node/scheduler/optimistic.hpp>
 #include <nano/node/scheduler/priority.hpp>
 #include <nano/node/telemetry.hpp>
+#include <nano/node/transport/loopback.hpp>
 #include <nano/node/transport/tcp_listener.hpp>
 #include <nano/node/vote_generator.hpp>
 #include <nano/node/vote_processor.hpp>
@@ -130,6 +131,7 @@ nano::node::node (std::shared_ptr<boost::asio::io_context> io_ctx_a, std::filesy
 	//
 	network_impl{ std::make_unique<nano::network> (*this, config.peering_port.has_value () ? *config.peering_port : 0) },
 	network{ *network_impl },
+	loopback_channel{ std::make_shared<nano::transport::loopback_channel> (*this) },
 	telemetry_impl{ std::make_unique<nano::telemetry> (flags, *this, network, observers, network_params, stats) },
 	telemetry{ *telemetry_impl },
 	// BEWARE: `bootstrap` takes `network.port` instead of `config.peering_port` because when the user doesn't specify
@@ -171,9 +173,9 @@ nano::node::node (std::shared_ptr<boost::asio::io_context> io_ctx_a, std::filesy
 	vote_processor{ *vote_processor_impl },
 	vote_cache_processor_impl{ std::make_unique<nano::vote_cache_processor> (config.vote_processor, vote_router, vote_cache, stats, logger) },
 	vote_cache_processor{ *vote_cache_processor_impl },
-	generator_impl{ std::make_unique<nano::vote_generator> (config, *this, ledger, wallets, vote_processor, history, network, stats, logger, /* non-final */ false) },
+	generator_impl{ std::make_unique<nano::vote_generator> (config, *this, ledger, wallets, vote_processor, history, network, stats, logger, /* non-final */ false, loopback_channel) },
 	generator{ *generator_impl },
-	final_generator_impl{ std::make_unique<nano::vote_generator> (config, *this, ledger, wallets, vote_processor, history, network, stats, logger, /* final */ true) },
+	final_generator_impl{ std::make_unique<nano::vote_generator> (config, *this, ledger, wallets, vote_processor, history, network, stats, logger, /* final */ true, loopback_channel) },
 	final_generator{ *final_generator_impl },
 	scheduler_impl{ std::make_unique<nano::scheduler::component> (config, *this, ledger, ledger_notifications, bucketing, active, online_reps, vote_cache, confirming_set, stats, logger) },
 	scheduler{ *scheduler_impl },
@@ -250,6 +252,27 @@ nano::node::node (std::shared_ptr<boost::asio::io_context> io_ctx_a, std::filesy
 		}
 	});
 
+	// Representative is defined as online if replying to live votes or rep crawler queries
+	observers.vote.add ([this] (std::shared_ptr<nano::vote> vote, std::shared_ptr<nano::transport::channel> const & channel, nano::vote_source source, nano::vote_code code) {
+		release_assert (vote != nullptr);
+		release_assert (channel != nullptr);
+		debug_assert (code != nano::vote_code::invalid);
+
+		// Track rep weight voting on live elections
+		bool should_observe = (code != nano::vote_code::indeterminate);
+
+		// Ignore republished votes when rep crawling
+		if (source == nano::vote_source::live)
+		{
+			should_observe |= rep_crawler.process (vote, channel);
+		}
+
+		if (should_observe)
+		{
+			online_reps.observe (vote->account);
+		}
+	});
+
 	if (!init_error ())
 	{
 		wallets.observer = [this] (bool active) {
@@ -261,25 +284,6 @@ nano::node::node (std::shared_ptr<boost::asio::io_context> io_ctx_a, std::filesy
 
 		observers.channel_connected.add ([this] (std::shared_ptr<nano::transport::channel> const & channel) {
 			network.send_keepalive_self (channel);
-		});
-
-		observers.vote.add ([this] (std::shared_ptr<nano::vote> vote, std::shared_ptr<nano::transport::channel> const & channel, nano::vote_source source, nano::vote_code code) {
-			debug_assert (vote != nullptr);
-			debug_assert (code != nano::vote_code::invalid);
-			if (channel == nullptr)
-			{
-				return; // Channel expired when waiting for vote to be processed
-			}
-			// Ignore republished votes
-			if (source == nano::vote_source::live)
-			{
-				bool active_in_rep_crawler = rep_crawler.process (vote, channel);
-				if (active_in_rep_crawler)
-				{
-					// Representative is defined as online if replying to live votes or rep_crawler queries
-					online_reps.observe (vote->account);
-				}
-			}
 		});
 
 		// Cancelling local work generation

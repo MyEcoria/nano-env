@@ -15,6 +15,7 @@ enum class type
 	test,
 	error,
 	message,
+	message_loopback,
 	block,
 	ledger,
 	ledger_notifications,
@@ -637,6 +638,7 @@ enum class detail
 	sample,
 	rep_new,
 	rep_update,
+	rep_trim,
 	update_online,
 
 	// error codes

@@ -136,6 +136,7 @@ public:
 	nano::message_processor & message_processor;
 	std::unique_ptr<nano::network> network_impl;
 	nano::network & network;
+	std::shared_ptr<nano::transport::channel> loopback_channel;
 	std::unique_ptr<nano::telemetry> telemetry_impl;
 	nano::telemetry & telemetry;
 	std::unique_ptr<nano::transport::tcp_listener> tcp_listener_impl;

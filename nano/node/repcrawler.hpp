@@ -140,6 +140,11 @@ private:
 		std::shared_ptr<nano::transport::channel> channel;
 		std::chrono::steady_clock::time_point time{ std::chrono::steady_clock::now () };
 		unsigned int replies{ 0 }; // number of replies to the query
+
+		std::pair<std::shared_ptr<nano::transport::channel>, nano::block_hash> unique_key () const
+		{
+			return std::make_pair (channel, hash);
+		}
 	};
 
 	// clang-format off
@@ -147,6 +152,7 @@ private:
 	class tag_account {};
 	class tag_channel {};
 	class tag_sequenced {};
+	class tag_unique {};
 
 	using ordered_reps = boost::multi_index_container<rep_entry,
 	mi::indexed_by<
@@ -163,7 +169,9 @@ private:
 			mi::member<query_entry, std::shared_ptr<nano::transport::channel>, &query_entry::channel>>,
 		mi::sequenced<mi::tag<tag_sequenced>>,
 		mi::hashed_non_unique<mi::tag<tag_hash>,
-			mi::member<query_entry, nano::block_hash, &query_entry::hash>>
+			mi::member<query_entry, nano::block_hash, &query_entry::hash>>,
+		mi::hashed_unique<mi::tag<tag_unique>,
+			mi::const_mem_fun<query_entry, std::pair<std::shared_ptr<nano::transport::channel>, nano::block_hash>, &query_entry::unique_key>>
 	>>;
 	// clang-format on
 
