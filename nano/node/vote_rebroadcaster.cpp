@@ -58,13 +58,23 @@ nano::vote_rebroadcaster::vote_rebroadcaster (nano::vote_rebroadcaster_config co
 	};
 
 	vote_router.vote_processed.add ([this] (std::shared_ptr<nano::vote> const & vote, nano::vote_source source, std::unordered_map<nano::block_hash, nano::vote_code> const & results) {
-		bool processed = std::any_of (results.begin (), results.end (), [] (auto const & result) {
-			return result.second == nano::vote_code::vote;
+		// We also want to allow late votes to be rebroadcasted to help with reaching quorum for other nodes
+		bool should_rebroadcast = std::any_of (results.begin (), results.end (), [&] (auto const & result) {
+			auto const code = result.second;
+			if (code == nano::vote_code::vote)
+			{
+				return true; // Rebroadcast votes that were processed by active elections
+			}
+			if (code != nano::vote_code::indeterminate)
+			{
+				return vote->is_final (); // Rebroadcast late votes only if they are final
+			}
+			return false;
 		});
 
 		// Enable vote rebroadcasting only if the node does not host a representative
 		// Do not rebroadcast votes from non-principal representatives
-		if (processed && non_principal)
+		if (should_rebroadcast && non_principal)
 		{
 			auto tier = rep_tiers.tier (vote->account);
 			if (tier != nano::rep_tier::none)
@@ -184,7 +194,7 @@ void nano::vote_rebroadcaster::run ()
 
 		float constexpr network_fanout_scale = 1.0f;
 
-		// Wait for spare if our network traffic is too high
+		// Wait for spare capacity if our network traffic is too high
 		if (!network.check_capacity (nano::transport::traffic_type::vote_rebroadcast, network_fanout_scale))
 		{
 			stats.inc (nano::stat::type::vote_rebroadcaster, nano::stat::detail::cooldown);

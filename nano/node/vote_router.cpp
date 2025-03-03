@@ -92,7 +92,7 @@ std::unordered_map<nano::block_hash, nano::vote_code> nano::vote_router::vote (s
 				}
 				else
 				{
-					results[hash] = nano::vote_code::replay;
+					results[hash] = nano::vote_code::replay; // TODO: This could be more specific (e.g. "late")
 				}
 			}
 		}
