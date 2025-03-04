@@ -1146,3 +1146,107 @@ TEST (websocket, new_unconfirmed_block)
 	ASSERT_EQ ("state", message_contents.get<std::string> ("type"));
 	ASSERT_EQ ("send", message_contents.get<std::string> ("subtype"));
 }
+
+
+// Test verifying that multiple subscribers with different options receive messages with their correct
+// individual settings applied (specifically targeting the bug that was fixed)
+TEST (websocket, confirmation_options_independent)
+{
+	nano::test::system system;
+	nano::node_config config = system.default_config ();
+	config.websocket_config.enabled = true;
+	config.websocket_config.port = system.get_available_port ();
+	auto node1 (system.add_node (config));
+
+	// First prepare a block we'll confirm later
+	nano::keypair key;
+	nano::state_block_builder builder;
+	system.wallet (0)->insert_adhoc (nano::dev::genesis_key.prv);
+	auto prev_balance = nano::dev::constants.genesis_amount;
+	auto send_amount = node1->online_reps.delta () + 1;
+	auto new_balance = prev_balance - send_amount;
+	nano::block_hash previous (node1->latest (nano::dev::genesis_key.pub));
+	
+	auto send = builder
+				.account (nano::dev::genesis_key.pub)
+				.previous (previous)
+				.representative (nano::dev::genesis_key.pub)
+				.balance (new_balance)
+				.link (key.pub)
+				.sign (nano::dev::genesis_key.prv, nano::dev::genesis_key.pub)
+				.work (*system.work.generate (previous))
+				.build ();
+				
+	// Set up two concurrent tasks to subscribe with different options and wait for responses
+	std::atomic<bool> client1_done{ false };
+	std::atomic<bool> client2_done{ false };
+	boost::optional<std::string> client1_response;
+	boost::optional<std::string> client2_response;
+	
+	// Client 1: Subscribe with include_block = true but no sideband
+	auto client1_task = ([&client1_done, &client1_response, &node1] () {
+		fake_websocket_client client (node1->websocket.server->listening_port ());
+		client.send_message (R"json({"action": "subscribe", "topic": "confirmation", "ack": "true", "options": {"include_block": "true", "include_sideband_info": "false"}})json");
+		client.await_ack ();
+		auto response = client.get_response ();
+		client1_response = response;
+		client1_done = true;
+	});
+	
+	// Client 2: Subscribe with include_block = true AND include_sideband_info = true
+	auto client2_task = ([&client2_done, &client2_response, &node1] () {
+		fake_websocket_client client (node1->websocket.server->listening_port ());
+		client.send_message (R"json({"action": "subscribe", "topic": "confirmation", "ack": "true", "options": {"include_block": "true", "include_sideband_info": "true"}})json");
+		client.await_ack ();
+		auto response = client.get_response ();
+		client2_response = response;
+		client2_done = true;
+	});
+	
+	// Start both client tasks concurrently
+	auto future1 = std::async (std::launch::async, client1_task);
+	auto future2 = std::async (std::launch::async, client2_task);
+	
+	// Wait for both clients to be set up (both awaiting notifications)
+	ASSERT_TIMELY (5s, node1->websocket.server->subscriber_count (nano::websocket::topic::confirmation) == 2);
+	
+	// Now process the block to trigger notifications to both clients
+	node1->process_active (send);
+	
+	// Wait for both clients to receive their responses
+	ASSERT_TIMELY (5s, client1_done && client2_done);
+	
+	// Verify both clients got responses
+	ASSERT_TRUE (client1_response.has_value ());
+	ASSERT_TRUE (client2_response.has_value ());
+	
+	// Parse and check client1 response (should have block but no sideband)
+	boost::property_tree::ptree event1;
+	std::stringstream stream1;
+	stream1 << client1_response.get ();
+	boost::property_tree::read_json (stream1, event1);
+	ASSERT_EQ (event1.get<std::string> ("topic"), "confirmation");
+	
+	auto & message1 = event1.get_child ("message");
+	ASSERT_EQ (1, message1.count ("block"));
+	ASSERT_EQ (0, message1.count ("sideband"));
+	
+	// Parse and check client2 response (should have both block AND sideband)
+	boost::property_tree::ptree event2;
+	std::stringstream stream2;
+	stream2 << client2_response.get ();
+	boost::property_tree::read_json (stream2, event2);
+	ASSERT_EQ (event2.get<std::string> ("topic"), "confirmation");
+	
+	auto & message2 = event2.get_child ("message");
+	ASSERT_EQ (1, message2.count ("block"));
+	
+	// With the old caching code, this would fail because client2 would receive the same
+	// message as client1 (with no sideband info) despite requesting it
+	ASSERT_EQ (1, message2.count ("sideband"));
+	
+	// Verify sideband contains expected fields
+	auto & sideband = message2.get_child ("sideband");
+	ASSERT_EQ (1, sideband.count ("height"));
+	ASSERT_EQ (1, sideband.count ("local_timestamp"));
+}
