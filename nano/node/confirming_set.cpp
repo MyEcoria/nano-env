@@ -4,16 +4,17 @@
 #include <nano/lib/thread_roles.hpp>
 #include <nano/node/block_processor.hpp>
 #include <nano/node/confirming_set.hpp>
+#include <nano/node/ledger_notifications.hpp>
 #include <nano/secure/ledger.hpp>
 #include <nano/secure/ledger_set_any.hpp>
 #include <nano/secure/ledger_set_confirmed.hpp>
 #include <nano/store/component.hpp>
 #include <nano/store/write_queue.hpp>
 
-nano::confirming_set::confirming_set (confirming_set_config const & config_a, nano::ledger & ledger_a, nano::block_processor & block_processor_a, nano::stats & stats_a, nano::logger & logger_a) :
+nano::confirming_set::confirming_set (confirming_set_config const & config_a, nano::ledger & ledger_a, nano::ledger_notifications & ledger_notifications_a, nano::stats & stats_a, nano::logger & logger_a) :
 	config{ config_a },
 	ledger{ ledger_a },
-	block_processor{ block_processor_a },
+	ledger_notifications{ ledger_notifications_a },
 	stats{ stats_a },
 	logger{ logger_a },
 	workers{ 1, nano::thread_role::name::confirmation_height_notifications }
@@ -26,7 +27,7 @@ nano::confirming_set::confirming_set (confirming_set_config const & config_a, na
 	});
 
 	// Requeue blocks that failed to cement immediately due to missing ledger blocks
-	block_processor.batch_processed.add ([this] (auto const & batch) {
+	ledger_notifications.blocks_processed.add ([this] (auto const & batch) {
 		bool should_notify = false;
 		{
 			std::lock_guard lock{ mutex };
@@ -262,12 +263,12 @@ void nano::confirming_set::run_batch (std::unique_lock<std::mutex> & lock)
 			if (success)
 			{
 				stats.inc (nano::stat::type::confirming_set, nano::stat::detail::cemented_hash);
-				logger.debug (nano::log::type::confirming_set, "Cemented block: {} (total cemented: {})", hash.to_string (), cemented_count);
+				logger.debug (nano::log::type::confirming_set, "Cemented block: {} (total cemented: {})", hash, cemented_count);
 			}
 			else
 			{
 				stats.inc (nano::stat::type::confirming_set, nano::stat::detail::cementing_failed);
-				logger.debug (nano::log::type::confirming_set, "Failed to cement block: {}", hash.to_string ());
+				logger.debug (nano::log::type::confirming_set, "Failed to cement block: {}", hash);
 
 				// Requeue failed blocks for processing later
 				// Add them to the deferred set while still holding the exclusive database write transaction to avoid block processor races

@@ -6,6 +6,7 @@
 #include <nano/node/block_processor.hpp>
 #include <nano/node/bootstrap/bootstrap_service.hpp>
 #include <nano/node/bootstrap/crawlers.hpp>
+#include <nano/node/ledger_notifications.hpp>
 #include <nano/node/network.hpp>
 #include <nano/node/nodeconfig.hpp>
 #include <nano/node/transport/transport.hpp>
@@ -18,11 +19,13 @@
 
 using namespace std::chrono_literals;
 
-nano::bootstrap_service::bootstrap_service (nano::node_config const & node_config_a, nano::block_processor & block_processor_a, nano::ledger & ledger_a, nano::network & network_a, nano::stats & stat_a, nano::logger & logger_a) :
+nano::bootstrap_service::bootstrap_service (nano::node_config const & node_config_a, nano::ledger & ledger_a, nano::ledger_notifications & ledger_notifications_a,
+nano::block_processor & block_processor_a, nano::network & network_a, nano::stats & stat_a, nano::logger & logger_a) :
 	config{ node_config_a.bootstrap },
 	network_constants{ node_config_a.network_params.network },
-	block_processor{ block_processor_a },
 	ledger{ ledger_a },
+	ledger_notifications{ ledger_notifications_a },
+	block_processor{ block_processor_a },
 	network{ network_a },
 	stats{ stat_a },
 	logger{ logger_a },
@@ -36,7 +39,8 @@ nano::bootstrap_service::bootstrap_service (nano::node_config const & node_confi
 	frontiers_limiter{ config.frontier_rate_limit },
 	workers{ 1, nano::thread_role::name::bootstrap_worker }
 {
-	block_processor.batch_processed.add ([this] (auto const & batch) {
+	// Inspect all processed blocks
+	ledger_notifications.blocks_processed.add ([this] (auto const & batch) {
 		{
 			nano::lock_guard<nano::mutex> lock{ mutex };
 
@@ -51,7 +55,7 @@ nano::bootstrap_service::bootstrap_service (nano::node_config const & node_confi
 	});
 
 	// Unblock rolled back accounts as the dependency is no longer valid
-	block_processor.rolled_back.add ([this] (auto const & blocks, auto const & rollback_root) {
+	ledger_notifications.blocks_rolled_back.add ([this] (auto const & blocks, auto const & rollback_root) {
 		nano::lock_guard<nano::mutex> lock{ mutex };
 		for (auto const & block : blocks)
 		{
@@ -340,7 +344,16 @@ void nano::bootstrap_service::inspect (secure::transaction const & tx, nano::blo
 			}
 		}
 		break;
+		case nano::block_status::gap_epoch_open_pending:
+		{
+			// Epoch open blocks for accounts that don't have any pending blocks yet
+			debug_assert (block.type () == block_type::state); // Only state blocks can have epoch open pending status
+			const auto account = block.account_field ().value_or (0);
+			accounts.priority_erase (account);
+		}
+		break;
 		default: // No need to handle other cases
+			// TODO: If we receive blocks that are invalid (bad signature, fork, etc.), we should penalize the peer that sent them
 			break;
 	}
 }
@@ -529,33 +542,58 @@ bool nano::bootstrap_service::request (nano::account account, size_t count, std:
 		// Check if the account picked has blocks, if it does, start the pull from the highest block
 		if (auto info = ledger.store.account.get (transaction, account))
 		{
-			tag.type = query_type::blocks_by_hash;
-
 			// Probabilistically choose between requesting blocks from account frontier or confirmed frontier
 			// Optimistic requests start from the (possibly unconfirmed) account frontier and are vulnerable to bootstrap poisoning
 			// Safe requests start from the confirmed frontier and given enough time will eventually resolve forks
 			bool optimistic_reuest = rng.random (100) < config.optimistic_request_percentage;
-			if (!optimistic_reuest)
-			{
-				if (auto conf_info = ledger.store.confirmation_height.get (transaction, account))
-				{
-					stats.inc (nano::stat::type::bootstrap_request_blocks, nano::stat::detail::safe);
-					tag.start = conf_info->frontier;
-					tag.hash = conf_info->height;
-				}
-			}
-			if (tag.start.is_zero ())
+
+			if (optimistic_reuest) // Optimistic request case
 			{
 				stats.inc (nano::stat::type::bootstrap_request_blocks, nano::stat::detail::optimistic);
+
+				tag.type = query_type::blocks_by_hash;
 				tag.start = info->head;
 				tag.hash = info->head;
+
+				logger.debug (nano::log::type::bootstrap, "Requesting blocks for {} starting from account frontier: {} (optimistic: {})",
+				account,
+				tag.start,
+				optimistic_reuest);
+			}
+			else // Pessimistic (safe) request case
+			{
+				stats.inc (nano::stat::type::bootstrap_request_blocks, nano::stat::detail::safe);
+
+				if (auto conf_info = ledger.store.confirmation_height.get (transaction, account))
+				{
+					tag.type = query_type::blocks_by_hash;
+					tag.start = conf_info->frontier;
+					tag.hash = conf_info->frontier;
+
+					logger.debug (nano::log::type::bootstrap, "Requesting blocks for {} starting from confirmation frontier: {} (optimistic: {})",
+					account,
+					tag.start,
+					optimistic_reuest);
+				}
+				else
+				{
+					tag.type = query_type::blocks_by_account;
+					tag.start = account;
+
+					logger.debug (nano::log::type::bootstrap, "Requesting blocks for {} starting from account root (optimistic: {})",
+					account,
+					optimistic_reuest);
+				}
 			}
 		}
 		else
 		{
 			stats.inc (nano::stat::type::bootstrap_request_blocks, nano::stat::detail::base);
+
 			tag.type = query_type::blocks_by_account;
 			tag.start = account;
+
+			logger.debug (nano::log::type::bootstrap, "Requesting blocks for {}", account);
 		}
 	}
 
@@ -569,6 +607,9 @@ bool nano::bootstrap_service::request_info (nano::block_hash hash, std::shared_p
 	tag.source = source;
 	tag.start = hash;
 	tag.hash = hash;
+
+	logger.debug (nano::log::type::bootstrap, "Requesting account info for: {}", hash);
+
 	return send (channel, tag);
 }
 
@@ -578,6 +619,9 @@ bool nano::bootstrap_service::request_frontiers (nano::account start, std::share
 	tag.type = query_type::frontiers;
 	tag.source = source;
 	tag.start = start;
+
+	logger.debug (nano::log::type::bootstrap, "Requesting frontiers starting from: {}", start);
+
 	return send (channel, tag);
 }
 
@@ -727,11 +771,14 @@ void nano::bootstrap_service::cleanup_and_sync ()
 
 	throttle.resize (compute_throttle_size ());
 
+	accounts.decay_blocking ();
+
 	auto const now = std::chrono::steady_clock::now ();
 	auto should_timeout = [&] (async_tag const & tag) {
 		return tag.cutoff < now;
 	};
 
+	// Erase timed out requests
 	auto & tags_by_order = tags.get<tag_sequenced> ();
 	while (!tags_by_order.empty () && should_timeout (tags_by_order.front ()))
 	{
@@ -741,7 +788,8 @@ void nano::bootstrap_service::cleanup_and_sync ()
 		tags_by_order.pop_front ();
 	}
 
-	if (sync_dependencies_interval.elapsed (60s))
+	// Reinsert known dependencies into the priority set
+	if (sync_dependencies_interval.elapse (nano::is_dev_run () ? 1s : 60s))
 	{
 		stats.inc (nano::stat::type::bootstrap, nano::stat::detail::sync_dependencies);
 		accounts.sync_dependencies ();
@@ -1060,6 +1108,8 @@ void nano::bootstrap_service::process_frontiers (std::deque<std::pair<nano::acco
 	stats.add (nano::stat::type::bootstrap_frontiers, nano::stat::detail::prioritized, result.size ());
 	stats.add (nano::stat::type::bootstrap_frontiers, nano::stat::detail::outdated, outdated);
 	stats.add (nano::stat::type::bootstrap_frontiers, nano::stat::detail::pending, pending);
+
+	logger.debug (nano::log::type::bootstrap, "Processed {} frontiers of which outdated: {}, pending: {}", frontiers.size (), outdated, pending);
 
 	nano::lock_guard<nano::mutex> guard{ mutex };
 

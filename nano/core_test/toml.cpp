@@ -251,6 +251,7 @@ TEST (toml_config, daemon_config_deserialize_defaults)
 	[node.lmdb]
 	[node.rocksdb]
 	[node.tcp]
+	[node.network]
 	[opencl]
 	[rpc]
 	[rpc.child_process]
@@ -325,7 +326,6 @@ TEST (toml_config, daemon_config_deserialize_defaults)
 
 	ASSERT_EQ (conf.node.bounded_backlog.enable, defaults.node.bounded_backlog.enable);
 	ASSERT_EQ (conf.node.bounded_backlog.batch_size, defaults.node.bounded_backlog.batch_size);
-	ASSERT_EQ (conf.node.bounded_backlog.max_queued_notifications, defaults.node.bounded_backlog.max_queued_notifications);
 	ASSERT_EQ (conf.node.bounded_backlog.scan_rate, defaults.node.bounded_backlog.scan_rate);
 
 	ASSERT_EQ (conf.node.websocket_config.enabled, defaults.node.websocket_config.enabled);
@@ -426,6 +426,14 @@ TEST (toml_config, daemon_config_deserialize_defaults)
 	ASSERT_EQ (conf.node.tcp.connect_timeout, defaults.node.tcp.connect_timeout);
 	ASSERT_EQ (conf.node.tcp.handshake_timeout, defaults.node.tcp.handshake_timeout);
 	ASSERT_EQ (conf.node.tcp.io_timeout, defaults.node.tcp.io_timeout);
+
+	ASSERT_EQ (conf.node.network.peer_reachout.count (), defaults.node.network.peer_reachout.count ());
+	ASSERT_EQ (conf.node.network.cached_peer_reachout.count (), defaults.node.network.cached_peer_reachout.count ());
+	ASSERT_EQ (conf.node.network.max_peers_per_ip, defaults.node.network.max_peers_per_ip);
+	ASSERT_EQ (conf.node.network.max_peers_per_subnetwork, defaults.node.network.max_peers_per_subnetwork);
+	ASSERT_EQ (conf.node.network.duplicate_filter_size, defaults.node.network.duplicate_filter_size);
+	ASSERT_EQ (conf.node.network.duplicate_filter_cutoff, defaults.node.network.duplicate_filter_cutoff);
+	ASSERT_EQ (conf.node.network.minimum_fanout, defaults.node.network.minimum_fanout);
 }
 
 /** Deserialize a node config with non-default values */
@@ -657,6 +665,15 @@ TEST (toml_config, daemon_config_deserialize_no_defaults)
 	handshake_timeout = 999
 	io_timeout = 999
 
+	[node.network]
+	peer_reachout = 999
+	cached_peer_reachout = 9999
+	max_peers_per_ip = 99
+	max_peers_per_subnetwork = 99
+	duplicate_filter_size = 9999999
+	duplicate_filter_cutoff = 999
+	minimum_fanout = 99
+
 	[opencl]
 	device = 999
 	enable = true
@@ -743,7 +760,6 @@ TEST (toml_config, daemon_config_deserialize_no_defaults)
 
 	ASSERT_NE (conf.node.bounded_backlog.enable, defaults.node.bounded_backlog.enable);
 	ASSERT_NE (conf.node.bounded_backlog.batch_size, defaults.node.bounded_backlog.batch_size);
-	ASSERT_NE (conf.node.bounded_backlog.max_queued_notifications, defaults.node.bounded_backlog.max_queued_notifications);
 	ASSERT_NE (conf.node.bounded_backlog.scan_rate, defaults.node.bounded_backlog.scan_rate);
 
 	ASSERT_NE (conf.node.websocket_config.enabled, defaults.node.websocket_config.enabled);
@@ -846,6 +862,14 @@ TEST (toml_config, daemon_config_deserialize_no_defaults)
 	ASSERT_NE (conf.node.tcp.connect_timeout, defaults.node.tcp.connect_timeout);
 	ASSERT_NE (conf.node.tcp.handshake_timeout, defaults.node.tcp.handshake_timeout);
 	ASSERT_NE (conf.node.tcp.io_timeout, defaults.node.tcp.io_timeout);
+
+	ASSERT_NE (conf.node.network.peer_reachout.count (), defaults.node.network.peer_reachout.count ());
+	ASSERT_NE (conf.node.network.cached_peer_reachout.count (), defaults.node.network.cached_peer_reachout.count ());
+	ASSERT_NE (conf.node.network.max_peers_per_ip, defaults.node.network.max_peers_per_ip);
+	ASSERT_NE (conf.node.network.max_peers_per_subnetwork, defaults.node.network.max_peers_per_subnetwork);
+	ASSERT_NE (conf.node.network.duplicate_filter_size, defaults.node.network.duplicate_filter_size);
+	ASSERT_NE (conf.node.network.duplicate_filter_cutoff, defaults.node.network.duplicate_filter_cutoff);
+	ASSERT_NE (conf.node.network.minimum_fanout, defaults.node.network.minimum_fanout);
 }
 
 /** There should be no required values **/

@@ -114,7 +114,7 @@ TEST (vote_processor, weights)
 	auto & node (*system.nodes[0]);
 
 	// Create representatives of different weight levels
-	auto const stake = node.config.online_weight_minimum.number ();
+	auto const stake = nano::dev::genesis->balance ().number ();
 	auto const level0 = stake / 5000; // 0.02%
 	auto const level1 = stake / 500; // 0.2%
 	auto const level2 = stake / 50; // 2%
@@ -248,8 +248,8 @@ TEST (vote_processor, local_broadcast_without_a_representative)
 	ASSERT_NE (votes.end (), existing);
 	ASSERT_EQ (vote->timestamp (), existing->second.timestamp);
 	// Ensure the vote was broadcast
-	ASSERT_EQ (1, node.stats.count (nano::stat::type::message, nano::stat::detail::confirm_ack, nano::stat::dir::out));
-	ASSERT_EQ (1, node.stats.count (nano::stat::type::message, nano::stat::detail::publish, nano::stat::dir::out));
+	ASSERT_TIMELY_EQ (5s, 1, node.stats.count (nano::stat::type::message, nano::stat::detail::confirm_ack, nano::stat::dir::out));
+	ASSERT_TIMELY_EQ (5s, 1, node.stats.count (nano::stat::type::message, nano::stat::detail::publish, nano::stat::dir::out));
 }
 
 // Issue that tracks last changes on this test: https://github.com/nanocurrency/nano-node/issues/3485

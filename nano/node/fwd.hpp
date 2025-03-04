@@ -19,6 +19,7 @@ class bootstrap_service;
 class confirming_set;
 class election;
 class election_status;
+class ledger_notifications;
 class local_block_broadcaster;
 class local_vote_history;
 class logger;
@@ -29,18 +30,19 @@ class node_config;
 class node_flags;
 class node_observers;
 class online_reps;
+class pruning;
 class recently_cemented_cache;
 class recently_confirmed_cache;
 class rep_crawler;
 class rep_tiers;
+class http_callbacks;
 class telemetry;
 class unchecked_map;
 class stats;
 class vote_cache;
-enum class vote_code;
-enum class vote_source;
 class vote_generator;
 class vote_processor;
+class vote_rebroadcaster;
 class vote_router;
 class vote_spacing;
 class wallets;
@@ -49,6 +51,7 @@ enum class block_source;
 enum class election_behavior;
 enum class election_state;
 enum class vote_code;
+enum class vote_source;
 }
 
 namespace nano::scheduler

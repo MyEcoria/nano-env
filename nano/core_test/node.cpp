@@ -10,6 +10,7 @@
 #include <nano/node/make_store.hpp>
 #include <nano/node/online_reps.hpp>
 #include <nano/node/portmapping.hpp>
+#include <nano/node/pruning.hpp>
 #include <nano/node/scheduler/component.hpp>
 #include <nano/node/scheduler/manual.hpp>
 #include <nano/node/scheduler/priority.hpp>
@@ -1385,6 +1386,14 @@ TEST (node, bootstrap_fork_open)
 {
 	nano::test::system system;
 	nano::node_config node_config (system.get_available_port ());
+	node_config.bootstrap.account_sets.cooldown = 100ms; // Reduce cooldown to speed up fork resolution
+	node_config.bootstrap.frontier_scan.head_parallelism = 3; // Make sure we can process the full account number range
+	node_config.bootstrap.frontier_rate_limit = 0; // Disable rate limiting to speed up the scan
+	// Disable automatic election activation
+	node_config.backlog_scan.enable = false;
+	node_config.priority_scheduler.enable = false;
+	node_config.hinted_scheduler.enable = false;
+	node_config.optimistic_scheduler.enable = false;
 	auto node0 = system.add_node (node_config);
 	node_config.peering_port = system.get_available_port ();
 	auto node1 = system.add_node (node_config);
@@ -1411,26 +1420,30 @@ TEST (node, bootstrap_fork_open)
 				 .sign (key0.prv, key0.pub)
 				 .work (*system.work.generate (key0.pub))
 				 .build ();
+
 	// Both know about send0
 	ASSERT_EQ (nano::block_status::progress, node0->process (send0));
 	ASSERT_EQ (nano::block_status::progress, node1->process (send0));
+
 	// Confirm send0 to allow starting and voting on the following blocks
-	for (auto node : system.nodes)
-	{
-		node->start_election (node->block (node->latest (nano::dev::genesis_key.pub)));
-		ASSERT_TIMELY (1s, node->active.election (send0->qualified_root ()));
-		auto election = node->active.election (send0->qualified_root ());
-		ASSERT_NE (nullptr, election);
-		election->force_confirm ();
-		ASSERT_TIMELY (2s, node->active.empty ());
-	}
-	ASSERT_TIMELY (3s, node0->block_confirmed (send0->hash ()));
+	nano::test::confirm (*node0, { send0 });
+	nano::test::confirm (*node1, { send0 });
+	ASSERT_TIMELY (5s, node0->block_confirmed (send0->hash ()));
+	ASSERT_TIMELY (5s, node1->block_confirmed (send0->hash ()));
+
 	// They disagree about open0/open1
 	ASSERT_EQ (nano::block_status::progress, node0->process (open0));
+	node0->confirming_set.add (open0->hash ());
+	ASSERT_TIMELY (5s, node0->block_confirmed (open0->hash ()));
+
 	ASSERT_EQ (nano::block_status::progress, node1->process (open1));
+	ASSERT_TRUE (node1->block_or_pruned_exists (open1->hash ()));
+	node1->start_election (open1); // Start election for open block which is necessary to resolve the fork
+	ASSERT_TIMELY (5s, node1->active.active (*open1));
+
+	// Allow node0 to vote on its fork
 	system.wallet (0)->insert_adhoc (nano::dev::genesis_key.prv);
-	ASSERT_FALSE (node1->block_or_pruned_exists (open0->hash ()));
-	ASSERT_TIMELY (1s, node1->active.empty ());
+
 	ASSERT_TIMELY (10s, !node1->block_or_pruned_exists (open1->hash ()) && node1->block_or_pruned_exists (open0->hash ()));
 }
 
@@ -2225,11 +2238,11 @@ TEST (node, DISABLED_fork_invalid_block_signature)
 	node1.process_active (send1);
 	ASSERT_TIMELY (5s, node1.block (send1->hash ()));
 	// Send the vote with the corrupt block signature
-	node2.network.flood_vote (vote_corrupt, 1.0f);
+	ASSERT_TRUE (node2.network.flood_vote_rebroadcasted (vote_corrupt, 1.0f));
 	// Wait for the rollback
 	ASSERT_TIMELY (5s, node1.stats.count (nano::stat::type::rollback));
 	// Send the vote with the correct block
-	node2.network.flood_vote (vote, 1.0f);
+	ASSERT_TRUE (node2.network.flood_vote_rebroadcasted (vote, 1.0f));
 	ASSERT_TIMELY (10s, !node1.block (send1->hash ()));
 	ASSERT_TIMELY (10s, node1.block (send2->hash ()));
 	ASSERT_EQ (node1.block (send2->hash ())->block_signature (), send2->block_signature ());
@@ -2770,9 +2783,8 @@ TEST (node, rollback_vote_self)
 		system.wallet (0)->insert_adhoc (nano::dev::genesis_key.prv);
 
 		// Without the rollback being finished, the aggregator should not reply with any vote
-		auto channel = std::make_shared<nano::transport::fake::channel> (node);
-		node.aggregator.request ({ { send2->hash (), send2->root () } }, channel);
-		ASSERT_ALWAYS_EQ (1s, node.stats.count (nano::stat::type::request_aggregator_replies), 0);
+		node.aggregator.request ({ { send2->hash (), send2->root () } }, node.loopback_channel);
+		ASSERT_ALWAYS (1s, !election->votes ().contains (nano::dev::genesis_key.pub));
 
 		// Going out of the scope allows the rollback to complete
 	}
@@ -3446,13 +3458,13 @@ TEST (node, DISABLED_pruning_age)
 	ASSERT_EQ (3, node1.ledger.block_count ());
 
 	// Pruning with default age 1 day
-	node1.ledger_pruning (1, true);
+	node1.pruning.ledger_pruning (1, true);
 	ASSERT_EQ (0, node1.ledger.pruned_count ());
 	ASSERT_EQ (3, node1.ledger.block_count ());
 
 	// Pruning with max age 0
 	node1.config.max_pruning_age = std::chrono::seconds{ 0 };
-	node1.ledger_pruning (1, true);
+	node1.pruning.ledger_pruning (1, true);
 	ASSERT_EQ (1, node1.ledger.pruned_count ());
 	ASSERT_EQ (3, node1.ledger.block_count ());
 
@@ -3507,13 +3519,13 @@ TEST (node, DISABLED_pruning_depth)
 	ASSERT_EQ (3, node1.ledger.block_count ());
 
 	// Pruning with default depth (unlimited)
-	node1.ledger_pruning (1, true);
+	node1.pruning.ledger_pruning (1, true);
 	ASSERT_EQ (0, node1.ledger.pruned_count ());
 	ASSERT_EQ (3, node1.ledger.block_count ());
 
 	// Pruning with max depth 1
 	node1.config.max_pruning_depth = 1;
-	node1.ledger_pruning (1, true);
+	node1.pruning.ledger_pruning (1, true);
 	ASSERT_EQ (1, node1.ledger.pruned_count ());
 	ASSERT_EQ (3, node1.ledger.block_count ());
 

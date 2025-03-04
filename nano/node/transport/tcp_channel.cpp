@@ -16,7 +16,6 @@ nano::transport::tcp_channel::tcp_channel (nano::node & node_a, std::shared_ptr<
 	strand{ node_a.io_ctx.get_executor () },
 	sending_task{ strand }
 {
-	stacktrace = nano::generate_stacktrace ();
 	remote_endpoint = socket_a->remote_endpoint ();
 	local_endpoint = socket_a->local_endpoint ();
 	start ();
@@ -76,20 +75,27 @@ bool nano::transport::tcp_channel::max (nano::transport::traffic_type traffic_ty
 	return queue.max (traffic_type);
 }
 
-bool nano::transport::tcp_channel::send_buffer (nano::shared_const_buffer const & buffer, nano::transport::traffic_type type, nano::transport::channel::callback_t callback)
+bool nano::transport::tcp_channel::send_impl (nano::message const & message, nano::transport::traffic_type type, nano::transport::channel::callback_t callback)
 {
+	auto buffer = message.to_shared_const_buffer ();
+
 	nano::unique_lock<nano::mutex> lock{ mutex };
 	if (!queue.full (type))
 	{
 		queue.push (type, { buffer, callback });
 		lock.unlock ();
+
 		node.stats.inc (nano::stat::type::tcp_channel, nano::stat::detail::queued, nano::stat::dir::out);
 		node.stats.inc (nano::stat::type::tcp_channel_queued, to_stat_detail (type), nano::stat::dir::out);
-		sending_task.notify ();
+
+		sending_task.notify (); // Wake up the sending task
+
 		return true;
 	}
 	else
 	{
+		lock.unlock ();
+
 		node.stats.inc (nano::stat::type::tcp_channel, nano::stat::detail::drop, nano::stat::dir::out);
 		node.stats.inc (nano::stat::type::tcp_channel_drop, to_stat_detail (type), nano::stat::dir::out);
 	}

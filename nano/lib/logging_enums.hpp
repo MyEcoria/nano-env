@@ -39,7 +39,7 @@ enum class type
 	qt,
 	rpc,
 	rpc_connection,
-	rpc_callbacks,
+	http_callbacks,
 	rpc_request,
 	ipc,
 	ipc_server,
@@ -59,7 +59,7 @@ enum class type
 	tcp_server,
 	tcp_listener,
 	tcp_channels,
-	prunning,
+	pruning,
 	conf_processor_bounded,
 	conf_processor_unbounded,
 	distributed_work,
@@ -86,6 +86,7 @@ enum class type
 	monitor,
 	confirming_set,
 	bounded_backlog,
+	request_aggregator,
 
 	// bootstrap
 	bulk_pull_client,

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <nano/lib/fwd.hpp>
+
 namespace nano
 {
 class account_info;
@@ -8,8 +10,13 @@ class ledger;
 class ledger_cache;
 class ledger_constants;
 class network_params;
+class pending_info;
+class pending_key;
 class vote;
+
+enum class block_status;
 }
+
 namespace nano::secure
 {
 class read_transaction;

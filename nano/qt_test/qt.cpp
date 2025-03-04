@@ -373,12 +373,9 @@ TEST (wallet, DISABLED_process_block)
 	QTest::mouseClick (wallet->advanced.enter_block, Qt::LeftButton);
 	ASSERT_EQ (wallet->block_entry.window, wallet->main_stack->currentWidget ());
 	nano::send_block send (latest, key1.pub, 0, nano::dev::genesis_key.prv, nano::dev::genesis_key.pub, *system.work.generate (latest));
-	std::string previous;
-	send.hashables.previous.encode_hex (previous);
-	std::string balance;
-	send.hashables.balance.encode_hex (balance);
-	std::string signature;
-	send.signature.encode_hex (signature);
+	std::string previous = send.hashables.previous.to_string ();
+	std::string balance = send.hashables.balance.to_string ();
+	std::string signature = send.signature.to_string ();
 	std::string block_json;
 	send.serialize_json (block_json);
 	block_json.erase (std::remove (block_json.begin (), block_json.end (), '\n'), block_json.end ());
@@ -521,9 +518,10 @@ TEST (history, short_text)
 	}
 	auto wallet (std::make_shared<nano_qt::wallet> (*test_application, processor, *system.nodes[0], system.wallet (0), account));
 	nano::logger logger;
+	nano::stats stats{ logger };
 	auto store = nano::make_store (logger, nano::unique_path (), nano::dev::constants);
 	ASSERT_TRUE (!store->init_error ());
-	nano::ledger ledger (*store, system.nodes[0]->stats, nano::dev::constants);
+	nano::ledger ledger (*store, nano::dev::constants, stats, logger);
 	{
 		auto transaction (ledger.tx_begin_write ());
 		store->initialize (transaction, ledger.cache, ledger.constants);
@@ -559,9 +557,10 @@ TEST (history, pruned_source)
 	}
 	auto wallet (std::make_shared<nano_qt::wallet> (*test_application, processor, *system.nodes[0], system.wallet (0), account));
 	nano::logger logger;
+	nano::stats stats{ logger };
 	auto store = nano::make_store (logger, nano::unique_path (), nano::dev::constants);
 	ASSERT_TRUE (!store->init_error ());
-	nano::ledger ledger (*store, system.nodes[0]->stats, nano::dev::constants);
+	nano::ledger ledger (*store, nano::dev::constants, stats, logger);
 	ledger.pruning = true;
 	nano::block_hash next_pruning;
 	// Basic pruning for legacy blocks. Previous block is pruned, source is pruned

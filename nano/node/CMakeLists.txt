@@ -20,8 +20,11 @@ add_library(
   backlog_scan.cpp
   bandwidth_limiter.hpp
   bandwidth_limiter.cpp
+  block_context.hpp
   block_processor.hpp
   block_processor.cpp
+  block_source.hpp
+  block_source.cpp
   bucketing.hpp
   bucketing.cpp
   bounded_backlog.hpp
@@ -85,6 +88,8 @@ add_library(
   ipc/ipc_server.cpp
   json_handler.hpp
   json_handler.cpp
+  ledger_notifications.hpp
+  ledger_notifications.cpp
   local_block_broadcaster.cpp
   local_block_broadcaster.hpp
   local_vote_history.cpp
@@ -123,8 +128,8 @@ add_library(
   peer_exclusion.cpp
   portmapping.hpp
   portmapping.cpp
-  process_live_dispatcher.cpp
-  process_live_dispatcher.hpp
+  pruning.hpp
+  pruning.cpp
   recently_cemented_cache.cpp
   recently_cemented_cache.hpp
   recently_confirmed_cache.cpp
@@ -135,6 +140,8 @@ add_library(
   rep_tiers.cpp
   request_aggregator.hpp
   request_aggregator.cpp
+  rpc_callbacks.hpp
+  rpc_callbacks.cpp
   scheduler/bucket.cpp
   scheduler/bucket.hpp
   scheduler/component.hpp
@@ -160,6 +167,8 @@ add_library(
   transport/fwd.hpp
   transport/inproc.hpp
   transport/inproc.cpp
+  transport/loopback.cpp
+  transport/loopback.hpp
   transport/message_deserializer.hpp
   transport/message_deserializer.cpp
   transport/tcp_channels.hpp
@@ -172,6 +181,8 @@ add_library(
   transport/tcp_server.cpp
   transport/tcp_socket.hpp
   transport/tcp_socket.cpp
+  transport/test_channel.hpp
+  transport/test_channel.cpp
   transport/traffic_type.hpp
   transport/traffic_type.cpp
   transport/transport.hpp
@@ -184,6 +195,8 @@ add_library(
   vote_generator.cpp
   vote_processor.hpp
   vote_processor.cpp
+  vote_rebroadcaster.hpp
+  vote_rebroadcaster.cpp
   vote_router.hpp
   vote_router.cpp
   vote_spacing.hpp

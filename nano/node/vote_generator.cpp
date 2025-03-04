@@ -16,7 +16,7 @@
 
 #include <chrono>
 
-nano::vote_generator::vote_generator (nano::node_config const & config_a, nano::node & node_a, nano::ledger & ledger_a, nano::wallets & wallets_a, nano::vote_processor & vote_processor_a, nano::local_vote_history & history_a, nano::network & network_a, nano::stats & stats_a, nano::logger & logger_a, bool is_final_a) :
+nano::vote_generator::vote_generator (nano::node_config const & config_a, nano::node & node_a, nano::ledger & ledger_a, nano::wallets & wallets_a, nano::vote_processor & vote_processor_a, nano::local_vote_history & history_a, nano::network & network_a, nano::stats & stats_a, nano::logger & logger_a, bool is_final_a, std::shared_ptr<nano::transport::channel> inproc_channel_a) :
 	config (config_a),
 	node (node_a),
 	ledger (ledger_a),
@@ -29,8 +29,8 @@ nano::vote_generator::vote_generator (nano::node_config const & config_a, nano::
 	stats (stats_a),
 	logger (logger_a),
 	is_final (is_final_a),
-	vote_generation_queue{ stats, nano::stat::type::vote_generator, nano::thread_role::name::vote_generator_queue, /* single threaded */ 1, /* max queue size */ 1024 * 32, /* max batch size */ 256 },
-	inproc_channel{ std::make_shared<nano::transport::inproc::channel> (node, node) }
+	inproc_channel{ inproc_channel_a },
+	vote_generation_queue{ stats, nano::stat::type::vote_generator, is_final ? nano::thread_role::name::voting_final : nano::thread_role::name::voting, /* single threaded */ 1, /* max queue size */ 1024 * 32, /* max batch size */ 256 }
 {
 	vote_generation_queue.process_batch = [this] (auto & batch) {
 		process_batch (batch);
@@ -77,7 +77,7 @@ void nano::vote_generator::start ()
 {
 	debug_assert (!thread.joinable ());
 	thread = std::thread ([this] () {
-		nano::thread_role::set (nano::thread_role::name::voting);
+		nano::thread_role::set (is_final ? nano::thread_role::name::voting_final : nano::thread_role::name::voting);
 		run ();
 	});
 	vote_generation_queue.start ();
@@ -278,9 +278,13 @@ void nano::vote_generator::vote (std::vector<nano::block_hash> const & hashes_a,
 
 void nano::vote_generator::broadcast_action (std::shared_ptr<nano::vote> const & vote_a) const
 {
-	network.flood_vote_pr (vote_a);
-	network.flood_vote_non_pr (vote_a, 2.0f);
 	vote_processor.vote (vote_a, inproc_channel);
+
+	auto sent_pr = network.flood_vote_pr (vote_a);
+	auto sent_non_pr = network.flood_vote_non_pr (vote_a, 2.0f);
+
+	stats.add (nano::stat::type::vote_generator, nano::stat::detail::sent_pr, sent_pr);
+	stats.add (nano::stat::type::vote_generator, nano::stat::detail::sent_non_pr, sent_non_pr);
 }
 
 void nano::vote_generator::run ()

@@ -711,14 +711,18 @@ void representative_visitor::state_block (nano::state_block const & block_a)
 {
 	result = block_a.hash ();
 }
-} // namespace
+}
 
-nano::ledger::ledger (nano::store::component & store_a, nano::stats & stat_a, nano::ledger_constants & constants, nano::generate_cache_flags const & generate_cache_flags_a, nano::uint128_t min_rep_weight_a) :
-	constants{ constants },
+/*
+ * ledger
+ */
+
+nano::ledger::ledger (nano::store::component & store_a, nano::ledger_constants & constants_a, nano::stats & stats_a, nano::logger & logger_a, nano::generate_cache_flags const & generate_cache_flags_a, nano::uint128_t min_rep_weight_a) :
+	constants{ constants_a },
 	store{ store_a },
 	cache{ store_a.rep_weight, min_rep_weight_a },
-	stats{ stat_a },
-	check_bootstrap_weights{ true },
+	stats{ stats_a },
+	logger{ logger_a },
 	any_impl{ std::make_unique<ledger_set_any> (*this) },
 	confirmed_impl{ std::make_unique<ledger_set_confirmed> (*this) },
 	any{ *any_impl },
@@ -748,6 +752,8 @@ auto nano::ledger::tx_begin_read () const -> secure::read_transaction
 
 void nano::ledger::initialize (nano::generate_cache_flags const & generate_cache_flags_a)
 {
+	logger.info (nano::log::type::ledger, "Loading ledger, this may take a while...");
+
 	if (generate_cache_flags_a.reps || generate_cache_flags_a.account_count || generate_cache_flags_a.block_count)
 	{
 		store.account.for_each_par (
@@ -788,8 +794,16 @@ void nano::ledger::initialize (nano::generate_cache_flags const & generate_cache
 		});
 	}
 
-	auto transaction (store.tx_begin_read ());
-	cache.pruned_count = store.pruned.count (transaction);
+	{
+		auto transaction (store.tx_begin_read ());
+		cache.pruned_count = store.pruned.count (transaction);
+	}
+
+	logger.info (nano::log::type::ledger, "Block count:    {:>10}", cache.block_count.load ());
+	logger.info (nano::log::type::ledger, "Cemented count: {:>10}", cache.cemented_count.load ());
+	logger.info (nano::log::type::ledger, "Account count:  {:>10}", cache.account_count.load ());
+	logger.info (nano::log::type::ledger, "Pruned count:   {:>10}", cache.pruned_count.load ());
+	logger.info (nano::log::type::ledger, "Representative count: {}", cache.rep_weights.size ());
 }
 
 bool nano::ledger::unconfirmed_exists (secure::transaction const & transaction, nano::block_hash const & hash)
@@ -962,25 +976,38 @@ std::deque<std::shared_ptr<nano::block>> nano::ledger::random_blocks (secure::tr
 	return result;
 }
 
-// Vote weight of an account
+bool nano::ledger::bootstrap_height_reached () const
+{
+	return cache.block_count >= bootstrap_weight_max_blocks;
+}
+
+std::unordered_map<nano::account, nano::uint128_t> nano::ledger::rep_weights_snapshot () const
+{
+	if (!bootstrap_height_reached ())
+	{
+		return bootstrap_weights;
+	}
+	else
+	{
+		return cache.rep_weights.get_rep_amounts ();
+	}
+}
+
 nano::uint128_t nano::ledger::weight (nano::account const & account_a) const
 {
-	if (check_bootstrap_weights.load ())
+	if (!bootstrap_height_reached ())
 	{
-		if (cache.block_count < bootstrap_weight_max_blocks)
+		auto weight = bootstrap_weights.find (account_a);
+		if (weight != bootstrap_weights.end ())
 		{
-			auto weight = bootstrap_weights.find (account_a);
-			if (weight != bootstrap_weights.end ())
-			{
-				return weight->second;
-			}
+			return weight->second;
 		}
-		else
-		{
-			check_bootstrap_weights = false;
-		}
+		return 0;
 	}
-	return cache.rep_weights.representation_get (account_a);
+	else
+	{
+		return cache.rep_weights.representation_get (account_a);
+	}
 }
 
 nano::uint128_t nano::ledger::weight_exact (secure::transaction const & txn_a, nano::account const & representative_a) const
@@ -1170,6 +1197,20 @@ std::shared_ptr<nano::block> nano::ledger::find_receive_block_by_send_hash (secu
 	return result;
 }
 
+std::optional<nano::account> nano::ledger::linked_account (secure::transaction const & transaction, nano::block const & block)
+{
+	if (block.is_send ())
+	{
+		return block.destination ();
+	}
+	else if (block.is_receive ())
+	{
+		return any.block_account (transaction, block.source ());
+	}
+
+	return std::nullopt;
+}
+
 nano::account const & nano::ledger::epoch_signer (nano::link const & link_a) const
 {
 	return constants.epochs.signer (constants.epochs.epoch (link_a));
@@ -1277,8 +1318,6 @@ auto nano::ledger::block_priority (nano::secure::transaction const & transaction
 // A precondition is that the store is an LMDB store
 bool nano::ledger::migrate_lmdb_to_rocksdb (std::filesystem::path const & data_path_a) const
 {
-	nano::logger logger;
-
 	logger.info (nano::log::type::ledger, "Migrating LMDB database to RocksDB. This will take a while...");
 
 	std::filesystem::space_info si = std::filesystem::space (data_path_a);
@@ -1303,9 +1342,9 @@ bool nano::ledger::migrate_lmdb_to_rocksdb (std::filesystem::path const & data_p
 	auto error (false);
 
 	// Open rocksdb database
-	nano::rocksdb_config rocksdb_config;
-	rocksdb_config.enable = true;
-	auto rocksdb_store = nano::make_store (logger, data_path_a, nano::dev::constants, false, true, rocksdb_config);
+	nano::node_config node_config;
+	node_config.database_backend = database_backend::rocksdb;
+	auto rocksdb_store = nano::make_store (logger, data_path_a, nano::dev::constants, false, true, node_config);
 
 	if (!rocksdb_store->init_error ())
 	{
@@ -1487,7 +1526,7 @@ bool nano::ledger::migrate_lmdb_to_rocksdb (std::filesystem::path const & data_p
 			}
 		}
 
-		logger.info (nano::log::type::ledger, "Migration completed. Make sure to enable RocksDB in the config file under [node.rocksdb]");
+		logger.info (nano::log::type::ledger, "Migration completed. Make sure to set `database_backend` under [node] to 'rocksdb' in config-node.toml");
 		logger.info (nano::log::type::ledger, "After confirming correct node operation, the data.ldb file can be deleted if no longer required");
 	}
 	else
@@ -1495,11 +1534,6 @@ bool nano::ledger::migrate_lmdb_to_rocksdb (std::filesystem::path const & data_p
 		error = true;
 	}
 	return error;
-}
-
-bool nano::ledger::bootstrap_weight_reached () const
-{
-	return cache.block_count >= bootstrap_weight_max_blocks;
 }
 
 nano::epoch nano::ledger::version (nano::block const & block)

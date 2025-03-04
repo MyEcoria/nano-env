@@ -66,7 +66,8 @@ public:
 		}
 	}
 
-	// TODO: Serialization & deserialization
+	nano::error deserialize (nano::tomlconfig &);
+	nano::error serialize (nano::tomlconfig &) const;
 
 public:
 	std::chrono::milliseconds peer_reachout{ 250ms };
@@ -79,6 +80,8 @@ public:
 
 	size_t duplicate_filter_size{ 1024 * 1024 };
 	uint64_t duplicate_filter_cutoff{ 60 };
+
+	size_t minimum_fanout{ 2 };
 };
 
 class network final
@@ -92,16 +95,16 @@ public:
 
 	nano::endpoint endpoint () const;
 
-	void flood_message (nano::message const &, nano::transport::traffic_type, float scale = 1.0f) const;
-	void flood_keepalive (float scale = 1.0f) const;
-	void flood_keepalive_self (float scale = 0.5f) const;
-	void flood_vote (std::shared_ptr<nano::vote> const &, float scale, bool rebroadcasted = false) const;
-	void flood_vote_pr (std::shared_ptr<nano::vote> const &, bool rebroadcasted = false) const;
-	void flood_vote_non_pr (std::shared_ptr<nano::vote> const &, float scale, bool rebroadcasted = false) const;
+	size_t flood_message (nano::message const &, nano::transport::traffic_type, float scale = 1.0f) const;
+	size_t flood_keepalive (float scale = 1.0f) const;
+	size_t flood_keepalive_self (float scale = 0.5f) const;
+	size_t flood_vote_pr (std::shared_ptr<nano::vote> const &) const;
+	size_t flood_vote_non_pr (std::shared_ptr<nano::vote> const &, float scale) const;
+	size_t flood_vote_rebroadcasted (std::shared_ptr<nano::vote> const &, float scale) const;
 	// Flood block to all PRs and a random selection of non-PRs
-	void flood_block_initial (std::shared_ptr<nano::block> const &) const;
+	size_t flood_block_initial (std::shared_ptr<nano::block> const &) const;
 	// Flood block to a random selection of peers
-	void flood_block (std::shared_ptr<nano::block> const &, nano::transport::traffic_type) const;
+	size_t flood_block (std::shared_ptr<nano::block> const &, nano::transport::traffic_type) const;
 	void flood_block_many (std::deque<std::shared_ptr<nano::block>>, nano::transport::traffic_type, std::chrono::milliseconds delay = 10ms, std::function<void ()> callback = nullptr) const;
 
 	void send_keepalive (std::shared_ptr<nano::transport::channel> const &) const;
@@ -118,8 +121,13 @@ public:
 	// Should we reach out to this endpoint with a keepalive message? If yes, register a new reachout attempt
 	bool track_reachout (nano::endpoint const &);
 
-	std::deque<std::shared_ptr<nano::transport::channel>> list (std::size_t max_count = 0, uint8_t minimum_version = 0) const;
-	std::deque<std::shared_ptr<nano::transport::channel>> list_non_pr (std::size_t max_count, uint8_t minimum_version = 0) const;
+	using channel_filter = std::function<bool (std::shared_ptr<nano::transport::channel> const &)>;
+
+	std::deque<std::shared_ptr<nano::transport::channel>> list (std::size_t max_count = 0, channel_filter = nullptr) const;
+	std::deque<std::shared_ptr<nano::transport::channel>> list_non_pr (std::size_t max_count = 0, channel_filter = nullptr) const;
+
+	std::deque<std::shared_ptr<nano::transport::channel>> list (std::size_t max_count, uint8_t minimum_version) const;
+	std::deque<std::shared_ptr<nano::transport::channel>> list_non_pr (std::size_t max_count, uint8_t minimum_version) const;
 
 	// Desired fanout for a given scale
 	std::size_t fanout (float scale = 1.0f) const;
@@ -134,7 +142,7 @@ public:
 	nano::tcp_endpoint bootstrap_peer ();
 	void cleanup (std::chrono::steady_clock::time_point const & cutoff);
 	std::size_t size () const;
-	float size_sqrt () const;
+	float size_log () const;
 	bool empty () const;
 	void erase (nano::transport::channel const &);
 	/** Disconnects and adds peer to exclusion list */

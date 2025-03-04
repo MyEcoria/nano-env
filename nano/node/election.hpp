@@ -64,8 +64,10 @@ class election final : public std::enable_shared_from_this<election>
 private:
 	// Minimum time between broadcasts of the current winner of an election, as a backup to requesting confirmations
 	std::chrono::milliseconds base_latency () const;
+
+	// Callbacks
 	std::function<void (std::shared_ptr<nano::block> const &)> confirmation_action;
-	std::function<void (nano::account const &)> live_vote_action;
+	std::function<void (nano::account const &)> vote_action;
 
 private: // State management
 	static unsigned constexpr passive_duration_factor = 5;

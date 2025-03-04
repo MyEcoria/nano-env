@@ -11,6 +11,7 @@ add_executable(
   block_store.cpp
   block_processor.cpp
   bootstrap.cpp
+  bootstrap_frontier_scan.cpp
   bootstrap_server.cpp
   bucketing.cpp
   cli.cpp
@@ -57,6 +58,7 @@ add_executable(
   request_aggregator.cpp
   signal_manager.cpp
   socket.cpp
+  stacktrace.cpp
   system.cpp
   tcp_listener.cpp
   telemetry.cpp

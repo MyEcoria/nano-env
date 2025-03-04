@@ -37,11 +37,14 @@ std::string nano::thread_role::get_string (nano::thread_role::name role)
 		case nano::thread_role::name::vote_cache_processing:
 			thread_role_name_string = "Vote cache proc";
 			break;
+		case nano::thread_role::name::vote_rebroadcasting:
+			thread_role_name_string = "Vote rebroad";
+			break;
 		case nano::thread_role::name::block_processing:
 			thread_role_name_string = "Blck processing";
 			break;
-		case nano::thread_role::name::block_processing_notifications:
-			thread_role_name_string = "Blck proc notif";
+		case nano::thread_role::name::ledger_notifications:
+			thread_role_name_string = "Ledger notif";
 			break;
 		case nano::thread_role::name::request_loop:
 			thread_role_name_string = "Request loop";
@@ -57,6 +60,9 @@ std::string nano::thread_role::get_string (nano::thread_role::name role)
 			break;
 		case nano::thread_role::name::voting:
 			thread_role_name_string = "Voting";
+			break;
+		case nano::thread_role::name::voting_final:
+			thread_role_name_string = "Voting final";
 			break;
 		case nano::thread_role::name::signature_checking:
 			thread_role_name_string = "Signature check";
@@ -105,12 +111,6 @@ std::string nano::thread_role::get_string (nano::thread_role::name role)
 			break;
 		case nano::thread_role::name::bounded_backlog_scan:
 			thread_role_name_string = "Bounded b scan";
-			break;
-		case nano::thread_role::name::bounded_backlog_notifications:
-			thread_role_name_string = "Bounded b notif";
-			break;
-		case nano::thread_role::name::vote_generator_queue:
-			thread_role_name_string = "Voting que";
 			break;
 		case nano::thread_role::name::bootstrap:
 			thread_role_name_string = "Bootstrap";
@@ -189,6 +189,12 @@ std::string nano::thread_role::get_string (nano::thread_role::name role)
 			break;
 		case nano::thread_role::name::monitor:
 			thread_role_name_string = "Monitor";
+			break;
+		case nano::thread_role::name::http_callbacks:
+			thread_role_name_string = "HTTP callbacks";
+			break;
+		case nano::thread_role::name::pruning:
+			thread_role_name_string = "Pruning";
 			break;
 		default:
 			debug_assert (false && "nano::thread_role::get_string unhandled thread role");

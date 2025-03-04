@@ -7,6 +7,7 @@
 #include <nano/node/confirmation_solicitor.hpp>
 #include <nano/node/confirming_set.hpp>
 #include <nano/node/election.hpp>
+#include <nano/node/ledger_notifications.hpp>
 #include <nano/node/node.hpp>
 #include <nano/node/online_reps.hpp>
 #include <nano/node/repcrawler.hpp>
@@ -21,11 +22,11 @@
 
 using namespace std::chrono;
 
-nano::active_elections::active_elections (nano::node & node_a, nano::confirming_set & confirming_set_a, nano::block_processor & block_processor_a) :
+nano::active_elections::active_elections (nano::node & node_a, nano::ledger_notifications & ledger_notifications_a, nano::confirming_set & confirming_set_a) :
 	config{ node_a.config.active_elections },
 	node{ node_a },
+	ledger_notifications{ ledger_notifications_a },
 	confirming_set{ confirming_set_a },
-	block_processor{ block_processor_a },
 	recently_confirmed{ config.confirmation_cache },
 	recently_cemented{ config.confirmation_history_size }
 {
@@ -55,7 +56,7 @@ nano::active_elections::active_elections (nano::node & node_a, nano::confirming_
 	});
 
 	// Notify elections about alternative (forked) blocks
-	block_processor.batch_processed.add ([this] (auto const & batch) {
+	ledger_notifications.blocks_processed.add ([this] (auto const & batch) {
 		for (auto const & [result, context] : batch)
 		{
 			if (result == nano::block_status::fork)
@@ -66,7 +67,7 @@ nano::active_elections::active_elections (nano::node & node_a, nano::confirming_
 	});
 
 	// Stop all rolled back active transactions except initial
-	block_processor.rolled_back.add ([this] (auto const & blocks, auto const & rollback_root) {
+	ledger_notifications.blocks_rolled_back.add ([this] (auto const & blocks, auto const & rollback_root) {
 		for (auto const & block : blocks)
 		{
 			if (block->qualified_root () != rollback_root)
@@ -405,12 +406,14 @@ nano::election_insertion_result nano::active_elections::insert (std::shared_ptr<
 		if (!recently_confirmed.exists (root))
 		{
 			result.inserted = true;
-			auto observe_rep_cb = [&node = node] (auto const & rep_a) {
-				// TODO: Is this neccessary? Move this outside of the election class
-				// Representative is defined as online if replying to live votes or rep_crawler queries
+
+			// Passing this callback into the election is important
+			// We need to observe and update the online voting weight *before* election quorum is checked
+			auto observe_rep_callback = [&node = node] (auto const & rep_a) {
 				node.online_reps.observe (rep_a);
 			};
-			result.election = nano::make_shared<nano::election> (node, block_a, nullptr, observe_rep_cb, election_behavior_a);
+			result.election = nano::make_shared<nano::election> (node, block_a, nullptr, observe_rep_callback, election_behavior_a);
+
 			roots.get<tag_root> ().emplace (entry{ root, result.election, std::move (erased_callback_a) });
 			node.vote_router.connect (hash, result.election);
 
@@ -419,11 +422,16 @@ nano::election_insertion_result nano::active_elections::insert (std::shared_ptr<
 			count_by_behavior[result.election->behavior ()]++;
 
 			// Skip passive phase for blocks without cached votes to avoid bootstrap delays
-			bool active_immediately = false;
-			if (node.vote_cache.contains (hash))
+			bool activate_immediately = false;
+			if (!node.vote_cache.contains (hash))
 			{
+				activate_immediately = true;
+			}
+
+			if (activate_immediately)
+			{
+				node.stats.inc (nano::stat::type::active_elections, nano::stat::detail::activate_immediately);
 				result.election->transition_active ();
-				active_immediately = true;
 			}
 
 			node.stats.inc (nano::stat::type::active_elections, nano::stat::detail::started);
@@ -434,9 +442,9 @@ nano::election_insertion_result nano::active_elections::insert (std::shared_ptr<
 			nano::log::arg{ "election", result.election });
 
 			node.logger.debug (nano::log::type::active_elections, "Started new election for block: {} (behavior: {}, active immediately: {})",
-			hash.to_string (),
+			hash,
 			to_string (election_behavior_a),
-			active_immediately);
+			activate_immediately);
 		}
 		else
 		{
@@ -572,7 +580,7 @@ bool nano::active_elections::publish (std::shared_ptr<nano::block> const & block
 			node.vote_cache_processor.trigger (block_a->hash ());
 
 			node.stats.inc (nano::stat::type::active, nano::stat::detail::election_block_conflict);
-			node.logger.debug (nano::log::type::active_elections, "Block was added to an existing election: {}", block_a->hash ().to_string ());
+			node.logger.debug (nano::log::type::active_elections, "Block was added to an existing election: {}", block_a->hash ());
 		}
 	}
 	return result;

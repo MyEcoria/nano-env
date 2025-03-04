@@ -55,6 +55,8 @@ add_library(
   errors.cpp
   files.hpp
   files.cpp
+  formatting.hpp
+  formatting.cpp
   fwd.hpp
   id_dispenser.hpp
   interval.hpp
@@ -145,10 +147,6 @@ target_link_libraries(
   Boost::program_options
   Boost::property_tree
   Boost::stacktrace)
-
-if(NANO_STACKTRACE_BACKTRACE)
-  target_link_libraries(nano_lib backtrace)
-endif()
 
 target_compile_definitions(
   nano_lib

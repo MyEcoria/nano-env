@@ -13,7 +13,6 @@
 #include <nano/node/nodeconfig.hpp>
 #include <nano/node/online_reps.hpp>
 #include <nano/node/portmapping.hpp>
-#include <nano/node/process_live_dispatcher.hpp>
 #include <nano/node/rep_tiers.hpp>
 #include <nano/node/repcrawler.hpp>
 #include <nano/node/transport/tcp_server.hpp>
@@ -61,9 +60,6 @@ public:
 	nano::uint128_t minimum_principal_weight ();
 	void backup_wallet ();
 	void search_receivable_all ();
-	bool collect_ledger_pruning_targets (std::deque<nano::block_hash> &, nano::account &, uint64_t const, uint64_t const, uint64_t const);
-	void ledger_pruning (uint64_t const, bool);
-	void ongoing_ledger_pruning ();
 	// The default difficulty updates to base only when the first epoch_2 block is processed
 	uint64_t default_difficulty (nano::work_version const) const;
 	uint64_t default_receive_difficulty (nano::work_version const) const;
@@ -84,7 +80,6 @@ public:
 	uint64_t block_count () const;
 	uint64_t cemented_count () const;
 
-	void do_rpc_callback (boost::asio::ip::tcp::resolver::iterator i_a, std::string const &, uint16_t, std::shared_ptr<std::string> const &, std::shared_ptr<std::string> const &, std::shared_ptr<boost::asio::ip::tcp::resolver> const &);
 	bool online () const;
 	bool init_error () const;
 	std::pair<uint64_t, std::unordered_map<nano::account, nano::uint128_t>> get_bootstrap_weights () const;
@@ -135,12 +130,15 @@ public:
 	nano::wallets & wallets;
 	std::unique_ptr<nano::ledger> ledger_impl;
 	nano::ledger & ledger;
+	std::unique_ptr<nano::ledger_notifications> ledger_notifications_impl;
+	nano::ledger_notifications & ledger_notifications;
 	std::unique_ptr<nano::bandwidth_limiter> outbound_limiter_impl;
 	nano::bandwidth_limiter & outbound_limiter;
 	std::unique_ptr<nano::message_processor> message_processor_impl;
 	nano::message_processor & message_processor;
 	std::unique_ptr<nano::network> network_impl;
 	nano::network & network;
+	std::shared_ptr<nano::transport::channel> loopback_channel;
 	std::unique_ptr<nano::telemetry> telemetry_impl;
 	nano::telemetry & telemetry;
 	std::unique_ptr<nano::transport::tcp_listener> tcp_listener_impl;
@@ -197,12 +195,16 @@ public:
 	nano::epoch_upgrader & epoch_upgrader;
 	std::unique_ptr<nano::local_block_broadcaster> local_block_broadcaster_impl;
 	nano::local_block_broadcaster & local_block_broadcaster;
-	std::unique_ptr<nano::process_live_dispatcher> process_live_dispatcher_impl;
-	nano::process_live_dispatcher & process_live_dispatcher;
 	std::unique_ptr<nano::peer_history> peer_history_impl;
 	nano::peer_history & peer_history;
 	std::unique_ptr<nano::monitor> monitor_impl;
 	nano::monitor & monitor;
+	std::unique_ptr<nano::http_callbacks> http_callbacks_impl;
+	nano::http_callbacks & http_callbacks;
+	std::unique_ptr<nano::pruning> pruning_impl;
+	nano::pruning & pruning;
+	std::unique_ptr<nano::vote_rebroadcaster> vote_rebroadcaster_impl;
+	nano::vote_rebroadcaster & vote_rebroadcaster;
 
 public:
 	std::chrono::steady_clock::time_point const startup_time;

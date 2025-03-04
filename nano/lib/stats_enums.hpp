@@ -15,18 +15,23 @@ enum class type
 	test,
 	error,
 	message,
+	message_loopback,
 	block,
 	ledger,
+	ledger_notifications,
 	rollback,
 	network,
 	vote,
 	vote_processor,
 	vote_processor_tier,
 	vote_processor_overfill,
+	vote_rebroadcaster,
 	election,
 	election_cleanup,
 	election_vote,
-	http_callback,
+	http_callbacks,
+	http_callbacks_notified,
+	http_callbacks_ec,
 	ipc,
 	tcp,
 	tcp_server,
@@ -113,6 +118,7 @@ enum class type
 	message_processor_type,
 	process_confirmed,
 	online_reps,
+	pruning,
 
 	_last // Must be the last enum
 };
@@ -166,6 +172,10 @@ enum class detail
 	other,
 	drop,
 	queued,
+	error,
+	failed,
+	refresh,
+	sent,
 	reset,
 
 	// processing queue
@@ -285,6 +295,7 @@ enum class detail
 	broadcast_block_repeat,
 	confirm_once,
 	confirm_once_failed,
+	confirmation_request,
 
 	// election types
 	manual,
@@ -424,11 +435,13 @@ enum class detail
 	cleanup_outdated,
 	erase_stale,
 
-	// vote generator
+	// vote_generator
 	generator_broadcasts,
 	generator_replies,
 	generator_replies_discarded,
 	generator_spacing,
+	sent_pr,
+	sent_non_pr,
 
 	// hinting
 	missing_block,
@@ -459,6 +472,7 @@ enum class detail
 	transition_priority,
 	transition_priority_failed,
 	election_cleanup,
+	activate_immediately,
 
 	// active_elections
 	started,
@@ -529,6 +543,7 @@ enum class detail
 	blocking_overflow,
 	priority_insert,
 	priority_set,
+	priority_erase,
 	priority_unblocked,
 	erase_by_threshold,
 	erase_by_blocking,
@@ -536,6 +551,8 @@ enum class detail
 	deprioritize,
 	deprioritize_failed,
 	sync_dependencies,
+	decay_blocking,
+	blocking_decayed,
 	dependency_synced,
 
 	request_blocks,
@@ -570,6 +587,10 @@ enum class detail
 	tier_1,
 	tier_2,
 	tier_3,
+
+	// ledger_notifications
+	notify_processed,
+	notify_rolled_back,
 
 	// confirming_set
 	notify_cemented,
@@ -618,6 +639,7 @@ enum class detail
 	sample,
 	rep_new,
 	rep_update,
+	rep_trim,
 	update_online,
 
 	// error codes
@@ -625,6 +647,26 @@ enum class detail
 	timed_out,
 	host_unreachable,
 	not_supported,
+
+	// http
+	error_resolving,
+	error_connecting,
+	error_sending,
+	error_completing,
+	bad_status,
+
+	// http_callbacks
+	block_confirmed,
+	large_backlog,
+
+	// pruning
+	ledger_pruning,
+	pruning_target,
+	pruned_count,
+	collect_targets,
+
+	// vote_rebroadcaster
+	rebroadcast_hashes,
 
 	_last // Must be the last enum
 };

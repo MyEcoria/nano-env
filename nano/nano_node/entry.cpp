@@ -16,6 +16,7 @@
 #include <nano/node/json_handler.hpp>
 #include <nano/node/node.hpp>
 #include <nano/node/online_reps.hpp>
+#include <nano/node/pruning.hpp>
 #include <nano/node/transport/inproc.hpp>
 #include <nano/secure/ledger.hpp>
 #include <nano/secure/ledger_set_any.hpp>
@@ -445,8 +446,7 @@ int main (int argc, char * const * argv)
 				using time_point = std::chrono::system_clock::time_point;
 				time_point ts (std::chrono::duration_cast<time_point::duration> (std::chrono::nanoseconds (i->first)));
 				std::time_t timestamp = std::chrono::system_clock::to_time_t (ts);
-				std::string weight;
-				i->second.encode_dec (weight);
+				std::string weight = i->second.to_string_dec ();
 				std::cout << boost::str (boost::format ("Timestamp %1% Weight %2%\n") % ctime (&timestamp) % weight);
 			}
 		}
@@ -1923,7 +1923,7 @@ int main (int argc, char * const * argv)
 			nano::update_flags (node_flags, vm);
 			nano::inactive_node inactive_node (data_path, node_flags);
 			auto node = inactive_node.node;
-			node->ledger_pruning (node_flags.block_processor_batch_size != 0 ? node_flags.block_processor_batch_size : 16 * 1024, true);
+			node->pruning.ledger_pruning (node_flags.block_processor_batch_size != 0 ? node_flags.block_processor_batch_size : 16 * 1024, true);
 		}
 		else if (vm.count ("debug_stacktrace"))
 		{

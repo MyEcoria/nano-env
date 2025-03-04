@@ -3,6 +3,7 @@
 #include <nano/lib/numbers.hpp>
 #include <nano/lib/timer.hpp>
 #include <nano/secure/account_info.hpp>
+#include <nano/secure/fwd.hpp>
 #include <nano/secure/generate_cache_flags.hpp>
 #include <nano/secure/ledger_cache.hpp>
 #include <nano/secure/pending_info.hpp>
@@ -19,15 +20,8 @@ class component;
 
 namespace nano
 {
-class block;
-enum class block_status;
-enum class epoch : uint8_t;
-class ledger_constants;
 class ledger_set_any;
 class ledger_set_confirmed;
-class pending_info;
-class pending_key;
-class stats;
 
 class ledger final
 {
@@ -35,7 +29,7 @@ class ledger final
 	friend class receivable_iterator;
 
 public:
-	ledger (nano::store::component &, nano::stats &, nano::ledger_constants & constants, nano::generate_cache_flags const & = nano::generate_cache_flags{}, nano::uint128_t min_rep_weight_a = 0);
+	ledger (nano::store::component &, nano::ledger_constants &, nano::stats &, nano::logger &, nano::generate_cache_flags const & = nano::generate_cache_flags{}, nano::uint128_t min_rep_weight_a = 0);
 	~ledger ();
 
 	/** Start read-write transaction */
@@ -72,10 +66,12 @@ public:
 	bool is_epoch_link (nano::link const &) const;
 	std::array<nano::block_hash, 2> dependent_blocks (secure::transaction const &, nano::block const &) const;
 	std::shared_ptr<nano::block> find_receive_block_by_send_hash (secure::transaction const &, nano::account const & destination, nano::block_hash const & send_block_hash);
+	std::optional<nano::account> linked_account (secure::transaction const &, nano::block const &);
 	nano::account const & epoch_signer (nano::link const &) const;
 	nano::link const & epoch_link (nano::epoch) const;
 	bool migrate_lmdb_to_rocksdb (std::filesystem::path const &) const;
-	bool bootstrap_weight_reached () const;
+	bool bootstrap_height_reached () const;
+	std::unordered_map<nano::account, nano::uint128_t> rep_weights_snapshot () const;
 
 	static nano::epoch version (nano::block const & block);
 	nano::epoch version (secure::transaction const &, nano::block_hash const & hash) const;
@@ -100,10 +96,10 @@ public:
 	nano::store::component & store;
 	nano::ledger_cache cache;
 	nano::stats & stats;
+	nano::logger & logger;
 
 	std::unordered_map<nano::account, nano::uint128_t> bootstrap_weights;
 	uint64_t bootstrap_weight_max_blocks{ 1 };
-	mutable std::atomic<bool> check_bootstrap_weights;
 
 	bool pruning{ false };
 

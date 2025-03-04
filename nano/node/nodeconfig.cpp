@@ -250,6 +250,10 @@ nano::error nano::node_config::serialize_toml (nano::tomlconfig & toml) const
 	tcp.serialize (tcp_l);
 	toml.put_child ("tcp", tcp_l);
 
+	nano::tomlconfig network_l;
+	network.serialize (network_l);
+	toml.put_child ("network", network_l);
+
 	nano::tomlconfig request_aggregator_l;
 	request_aggregator.serialize (request_aggregator_l);
 	toml.put_child ("request_aggregator", request_aggregator_l);
@@ -389,6 +393,12 @@ nano::error nano::node_config::deserialize_toml (nano::tomlconfig & toml)
 		{
 			auto config_l = toml.get_required_child ("tcp");
 			tcp.deserialize (config_l);
+		}
+
+		if (toml.has_key ("network"))
+		{
+			auto config_l = toml.get_required_child ("network");
+			network.deserialize (config_l);
 		}
 
 		if (toml.has_key ("request_aggregator"))
@@ -537,6 +547,19 @@ nano::error nano::node_config::deserialize_toml (nano::tomlconfig & toml)
 		toml.get<bool> ("allow_local_peers", allow_local_peers);
 		toml.get<unsigned> (signature_checker_threads_key, signature_checker_threads);
 
+		if (toml.has_key ("database_backend"))
+		{
+			auto backend_str = toml.get<std::string> ("database_backend");
+			if (auto backend = parse_database_backend (backend_str))
+			{
+				database_backend = backend.value ();
+			}
+			else
+			{
+				toml.get_error ().set ("Unknown database_backend type: " + backend_str);
+			}
+		}
+
 		if (toml.has_key ("lmdb"))
 		{
 			auto lmdb_config_l (toml.get_required_child ("lmdb"));
@@ -678,4 +701,54 @@ std::optional<unsigned> nano::node_config::env_io_threads ()
 		return value;
 	}();
 	return value;
+}
+
+std::optional<nano::database_backend> nano::node_config::env_database_backend ()
+{
+	static auto const backend = [] () -> std::optional<nano::database_backend> {
+		if (auto value = nano::env::get<std::string> ("NANO_BACKEND"))
+		{
+			auto backend = parse_database_backend (*value);
+			if (backend.has_value ())
+			{
+				std::cerr << "Default database backend overridden by NANO_BACKEND environment variable: " << to_string (*backend) << std::endl;
+			}
+			else
+			{
+				std::cerr << "Unknown database backend in NANO_BACKEND environment variable: " << *value << std::endl;
+			}
+			return backend;
+		}
+		return std::nullopt;
+	}();
+	return backend;
+}
+
+/*
+ * database_backend
+ */
+
+std::string nano::to_string (nano::database_backend const value)
+{
+	switch (value)
+	{
+		case nano::database_backend::lmdb:
+			return "lmdb";
+		case nano::database_backend::rocksdb:
+			return "rocksdb";
+	}
+	release_assert (false);
+}
+
+std::optional<nano::database_backend> nano::parse_database_backend (std::string const & value)
+{
+	if (value == "lmdb")
+	{
+		return nano::database_backend::lmdb;
+	}
+	if (value == "rocksdb")
+	{
+		return nano::database_backend::rocksdb;
+	}
+	return {};
 }

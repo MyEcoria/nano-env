@@ -66,7 +66,7 @@ public:
 	std::string to_string () const override;
 
 protected:
-	bool send_buffer (nano::shared_const_buffer const &, nano::transport::traffic_type, nano::transport::channel::callback_t) override;
+	bool send_impl (nano::message const &, nano::transport::traffic_type, nano::transport::channel::callback_t) override;
 
 private:
 	void start ();
@@ -90,9 +90,7 @@ private:
 	tcp_channel_queue queue;
 	std::atomic<size_t> allocated_bandwidth{ 0 };
 
-	// Debugging
 	std::atomic<bool> closed{ false };
-	std::string stacktrace;
 
 public: // Logging
 	void operator() (nano::object_stream &) const override;
