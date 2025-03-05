@@ -187,12 +187,32 @@ nano::vote_code nano::vote_processor::vote_blocking (std::shared_ptr<nano::vote>
 		// Aggregate results for individual hashes
 		bool replay = false;
 		bool processed = false;
+		bool late = false;
+
 		for (auto const & [hash, hash_result] : vote_results)
 		{
 			replay |= (hash_result == nano::vote_code::replay);
 			processed |= (hash_result == nano::vote_code::vote);
+			late |= (hash_result == nano::vote_code::late);
 		}
-		result = replay ? nano::vote_code::replay : (processed ? nano::vote_code::vote : nano::vote_code::indeterminate);
+
+		auto decide_result = [&] () {
+			if (replay)
+			{
+				return nano::vote_code::replay;
+			}
+			if (processed)
+			{
+				return nano::vote_code::vote;
+			}
+			if (late)
+			{
+				return nano::vote_code::late;
+			}
+			return nano::vote_code::indeterminate;
+		};
+
+		result = decide_result ();
 
 		observers.vote.notify (vote, channel, source, result);
 	}
