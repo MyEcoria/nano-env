@@ -21,7 +21,7 @@ std::optional<nano::pending_info> nano::store::lmdb::pending::get (store::transa
 {
 	nano::store::lmdb::db_val value;
 	auto status1 = store.get (transaction, tables::pending, key, value);
-	release_assert (store.success (status1) || store.not_found (status1));
+	release_assert (store.success (status1) || store.not_found (status1), store.error_string (status1));
 	std::optional<nano::pending_info> result;
 	if (store.success (status1))
 	{

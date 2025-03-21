@@ -15,10 +15,10 @@ void nano::store::rocksdb::account::put (store::write_transaction const & transa
 bool nano::store::rocksdb::account::get (store::transaction const & transaction, nano::account const & account, nano::account_info & info)
 {
 	nano::store::rocksdb::db_val value;
-	auto status1 (store.get (transaction, tables::accounts, account, value));
-	release_assert (store.success (status1) || store.not_found (status1));
+	auto status = store.get (transaction, tables::accounts, account, value);
+	release_assert (store.success (status) || store.not_found (status), store.error_string (status));
 	bool result (true);
-	if (store.success (status1))
+	if (store.success (status))
 	{
 		nano::bufferstream stream (reinterpret_cast<uint8_t const *> (value.data ()), value.size ());
 		result = info.deserialize (stream);

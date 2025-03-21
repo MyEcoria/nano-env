@@ -21,10 +21,10 @@ void nano::store::rocksdb::pending::del (store::write_transaction const & transa
 std::optional<nano::pending_info> nano::store::rocksdb::pending::get (store::transaction const & transaction, nano::pending_key const & key)
 {
 	nano::store::rocksdb::db_val value;
-	auto status1 = store.get (transaction, tables::pending, key, value);
-	release_assert (store.success (status1) || store.not_found (status1));
+	auto status = store.get (transaction, tables::pending, key, value);
+	release_assert (store.success (status) || store.not_found (status), store.error_string (status));
 	std::optional<nano::pending_info> result;
-	if (store.success (status1))
+	if (store.success (status))
 	{
 		nano::bufferstream stream (reinterpret_cast<uint8_t const *> (value.data ()), value.size ());
 		result = nano::pending_info{};

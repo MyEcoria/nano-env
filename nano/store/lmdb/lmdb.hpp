@@ -98,6 +98,7 @@ public:
 	bool init_error () const override;
 
 	uint64_t count (store::transaction const &, MDB_dbi) const;
+
 	std::string error_string (int status) const override;
 
 private:
@@ -115,12 +116,8 @@ private:
 	bool success (int status) const override;
 	void release_assert_success (int const status) const
 	{
-		if (!success (status))
-		{
-			release_assert (false, error_string (status));
-		}
+		release_assert (success (status), error_string (status));
 	}
-	int status_code_not_found () const override;
 
 	MDB_dbi table_to_dbi (tables table_a) const;
 
@@ -148,4 +145,8 @@ private:
 	friend class mdb_block_store_upgrade_v21_v22_Test;
 	friend class block_store_DISABLED_change_dupsort_Test;
 };
-} // namespace nano::store::lmdb
+
+bool success (int status);
+bool not_found (int status);
+std::string error_string (int status);
+}

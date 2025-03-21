@@ -163,7 +163,7 @@ void nano::store::lmdb::component::serialize_memory_stats (boost::property_tree:
 {
 	MDB_stat stats;
 	auto status (mdb_env_stat (env, &stats));
-	release_assert (status == 0);
+	release_assert (success (status), error_string (status));
 	json.put ("branch_pages", stats.ms_branch_pages);
 	json.put ("depth", stats.ms_depth);
 	json.put ("entries", stats.ms_entries);
@@ -258,8 +258,12 @@ void nano::store::lmdb::component::upgrade_v21_to_v22 (store::write_transaction 
 	logger.info (nano::log::type::lmdb, "Upgrading database from v21 to v22...");
 
 	MDB_dbi unchecked_handle{ 0 };
-	release_assert (!mdb_dbi_open (env.tx (transaction), "unchecked", MDB_CREATE, &unchecked_handle));
-	release_assert (!mdb_drop (env.tx (transaction), unchecked_handle, 1)); // del = 1, to delete it from the environment and close the DB handle.
+	auto status1 = mdb_dbi_open (env.tx (transaction), "unchecked", MDB_CREATE, &unchecked_handle);
+	release_assert (success (status1), error_string (status1));
+
+	auto status2 = mdb_drop (env.tx (transaction), unchecked_handle, 1); // del = 1, to delete it from the environment and close the DB handle.
+	release_assert (success (status2), error_string (status2));
+
 	version.put (transaction, 22);
 
 	logger.info (nano::log::type::lmdb, "Upgrading database from v21 to v22 completed");
@@ -329,9 +333,14 @@ void nano::store::lmdb::component::upgrade_v23_to_v24 (store::write_transaction 
 	logger.info (nano::log::type::lmdb, "Upgrading database from v23 to v24...");
 
 	MDB_dbi frontiers_handle{ 0 };
-	release_assert (!mdb_dbi_open (env.tx (transaction), "frontiers", MDB_CREATE, &frontiers_handle));
-	release_assert (!mdb_drop (env.tx (transaction), frontiers_handle, 1)); // del = 1, to delete it from the environment and close the DB handle.
+	auto status1 = mdb_dbi_open (env.tx (transaction), "frontiers", MDB_CREATE, &frontiers_handle);
+	release_assert (success (status1), error_string (status1));
+
+	auto status2 = mdb_drop (env.tx (transaction), frontiers_handle, 1); // del = 1, to delete it from the environment and close the DB handle.
+	release_assert (success (status2), error_string (status2));
+
 	version.put (transaction, 24);
+
 	logger.info (nano::log::type::lmdb, "Upgrading database from v23 to v24 completed");
 }
 
@@ -366,7 +375,7 @@ bool nano::store::lmdb::component::exists (store::transaction const & transactio
 {
 	nano::store::lmdb::db_val junk;
 	auto status = get (transaction_a, table_a, key_a, junk);
-	release_assert (status == MDB_SUCCESS || status == MDB_NOTFOUND);
+	release_assert (success (status) || not_found (status), error_string (status));
 	return (status == MDB_SUCCESS);
 }
 
@@ -440,22 +449,17 @@ MDB_dbi nano::store::lmdb::component::table_to_dbi (tables table_a) const
 
 bool nano::store::lmdb::component::not_found (int status) const
 {
-	return (status_code_not_found () == status);
+	return nano::store::lmdb::not_found (status);
 }
 
 bool nano::store::lmdb::component::success (int status) const
 {
-	return (MDB_SUCCESS == status);
-}
-
-int nano::store::lmdb::component::status_code_not_found () const
-{
-	return MDB_NOTFOUND;
+	return nano::store::lmdb::success (status);
 }
 
 std::string nano::store::lmdb::component::error_string (int status) const
 {
-	return mdb_strerror (status);
+	return nano::store::lmdb::error_string (status);
 }
 
 bool nano::store::lmdb::component::copy_db (std::filesystem::path const & destination_file)
@@ -532,4 +536,23 @@ bool nano::store::lmdb::component::upgrade_counters::are_equal () const
 unsigned nano::store::lmdb::component::max_block_write_batch_num () const
 {
 	return std::numeric_limits<unsigned>::max ();
+}
+
+/*
+ *
+ */
+
+bool nano::store::lmdb::success (int status)
+{
+	return (MDB_SUCCESS == status);
+}
+
+bool nano::store::lmdb::not_found (int status)
+{
+	return (MDB_NOTFOUND == status);
+}
+
+std::string nano::store::lmdb::error_string (int status)
+{
+	return "status: " + std::to_string (status) + " (" + mdb_strerror (status) + ")";
 }

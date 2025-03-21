@@ -49,7 +49,6 @@ namespace store
 		virtual int drop (write_transaction const & transaction_a, tables table_a) = 0;
 		virtual bool not_found (int status) const = 0;
 		virtual bool success (int status) const = 0;
-		virtual int status_code_not_found () const = 0;
 		virtual std::string error_string (int status) const = 0;
 
 		store::block & block;

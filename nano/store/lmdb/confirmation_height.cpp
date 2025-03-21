@@ -17,7 +17,7 @@ bool nano::store::lmdb::confirmation_height::get (store::transaction const & tra
 {
 	nano::store::lmdb::db_val value;
 	auto status = store.get (transaction, tables::confirmation_height, account, value);
-	release_assert (store.success (status) || store.not_found (status));
+	release_assert (store.success (status) || store.not_found (status), store.error_string (status));
 	bool result (true);
 	if (store.success (status))
 	{

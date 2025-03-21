@@ -118,12 +118,9 @@ private:
 	bool success (int status) const override;
 	void release_assert_success (int const status) const
 	{
-		if (!success (status))
-		{
-			release_assert (false, error_string (status));
-		}
+		release_assert (success (status), error_string (status));
 	}
-	int status_code_not_found () const override;
+
 	int drop (store::write_transaction const &, tables) override;
 
 	std::vector<::rocksdb::ColumnFamilyDescriptor> get_single_column_family (std::string cf_name) const;
@@ -155,4 +152,8 @@ private:
 	friend class nano::rocksdb_block_store_tombstone_count_Test;
 	friend class rocksdb_block_store_upgrade_v21_v22_Test;
 };
-} // namespace nano::store::rocksdb
+
+bool success (int status);
+bool not_found (int status);
+std::string error_string (int status);
+}

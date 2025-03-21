@@ -66,4 +66,4 @@ public:
 	nano::id_t const store_id{ nano::next_id () };
 	std::filesystem::path const database_path;
 };
-} // namespace nano::store::lmdb
+}
