@@ -24,6 +24,7 @@ enum class type
 	all = 0, // reserved
 
 	generic,
+	assert,
 	test,
 	system,
 	init,

@@ -215,7 +215,10 @@ void nano::logger::flush ()
 nano::logger::logger (std::string identifier) :
 	identifier{ std::move (identifier) }
 {
-	release_assert (global_initialized, "logging should be initialized before creating a logger");
+	if (!global_initialized)
+	{
+		throw std::runtime_error{ "logging should be initialized before creating a logger" };
+	}
 }
 
 nano::logger::~logger ()
