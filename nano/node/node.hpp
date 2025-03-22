@@ -73,10 +73,12 @@ public:
 	void add_initial_peers ();
 	void start_election (std::shared_ptr<nano::block> const & block);
 	bool block_confirmed (nano::block_hash const &);
-
 	// This function may spuriously return false after returning true until the database transaction is refreshed
 	bool block_confirmed_or_being_confirmed (nano::secure::transaction const &, nano::block_hash const &);
 	bool block_confirmed_or_being_confirmed (nano::block_hash const &);
+
+	uint64_t block_count () const;
+	uint64_t cemented_count () const;
 
 	bool online () const;
 	bool init_error () const;

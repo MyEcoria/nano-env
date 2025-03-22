@@ -149,6 +149,20 @@ void nano::bootstrap_service::stop ()
 	workers.stop ();
 }
 
+void nano::bootstrap_service::reset ()
+{
+	nano::lock_guard<nano::mutex> lock{ mutex };
+
+	stats.inc (nano::stat::type::bootstrap, nano::stat::detail::reset);
+	logger.info (nano::log::type::bootstrap, "Resetting bootstrap state");
+
+	accounts.reset ();
+	database_scan.reset ();
+	frontiers.reset ();
+	scoring.reset ();
+	throttle.reset ();
+}
+
 bool nano::bootstrap_service::send (std::shared_ptr<nano::transport::channel> const & channel, async_tag tag)
 {
 	debug_assert (tag.type != query_type::invalid);
@@ -1198,6 +1212,15 @@ auto nano::bootstrap_service::info () const -> nano::bootstrap::account_sets::in
 {
 	nano::lock_guard<nano::mutex> lock{ mutex };
 	return accounts.info ();
+}
+
+auto nano::bootstrap_service::status () const -> status_result
+{
+	nano::lock_guard<nano::mutex> lock{ mutex };
+	return {
+		.priorities = accounts.priority_size (),
+		.blocking = accounts.blocked_size (),
+	};
 }
 
 std::size_t nano::bootstrap_service::compute_throttle_size () const

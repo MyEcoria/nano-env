@@ -178,6 +178,7 @@ enum class detail
 	failed,
 	refresh,
 	sent,
+	reset,
 
 	// processing queue
 	queue,

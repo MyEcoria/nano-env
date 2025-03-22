@@ -37,9 +37,14 @@ public:
 	void stop ();
 
 	/**
-	 * Process `asc_pull_ack` message coming from network
+	 * Process bootstrap messages coming from the network
 	 */
 	void process (nano::asc_pull_ack const & message, std::shared_ptr<nano::transport::channel> const &);
+
+	/**
+	 * Clears priority and blocking accounts state
+	 */
+	void reset ();
 
 	std::size_t blocked_size () const;
 	std::size_t priority_size () const;
@@ -48,9 +53,16 @@ public:
 	bool prioritized (nano::account const &) const;
 	bool blocked (nano::account const &) const;
 
-	nano::container_info container_info () const;
-
 	nano::bootstrap::account_sets::info_t info () const;
+
+	struct status_result
+	{
+		size_t priorities;
+		size_t blocking;
+	};
+	status_result status () const;
+
+	nano::container_info container_info () const;
 
 private: // Dependencies
 	bootstrap_config const & config;

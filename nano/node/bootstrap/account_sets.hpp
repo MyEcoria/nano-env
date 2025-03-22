@@ -34,6 +34,8 @@ public: // Constants
 public:
 	account_sets (account_sets_config const &, nano::stats &);
 
+	void reset ();
+
 	void priority_up (nano::account const & account);
 	void priority_down (nano::account const & account);
 	void priority_set (nano::account const & account, double priority = priority_initial);

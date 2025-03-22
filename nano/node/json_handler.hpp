@@ -65,12 +65,13 @@ public:
 	void bootstrap_any ();
 	void bootstrap_lazy ();
 	void bootstrap_status ();
-	void chain (bool = false);
+	void bootstrap_priorities ();
+	void bootstrap_reset ();
+	void chain (bool successors = false);
 	void confirmation_active ();
 	void confirmation_history ();
 	void confirmation_info ();
 	void confirmation_quorum ();
-	void debug_bootstrap_priority_info ();
 	void database_txn_tracker ();
 	void delegators ();
 	void delegators_count ();
