@@ -1,5 +1,6 @@
 #include <nano/lib/files.hpp>
 #include <nano/lib/utility.hpp>
+#include <nano/store/lmdb/lmdb.hpp>
 #include <nano/store/lmdb/lmdb_env.hpp>
 
 #include <boost/system/error_code.hpp>
@@ -23,10 +24,10 @@ void nano::store::lmdb::env::init (bool & error_a, std::filesystem::path const &
 		{
 			MDB_env * environment;
 			auto status1 (mdb_env_create (&environment));
-			release_assert (status1 == 0);
+			release_assert (success (status1), error_string (status1));
 			this->environment.reset (environment);
 			auto status2 (mdb_env_set_maxdbs (environment, options_a.config.max_databases));
-			release_assert (status2 == 0);
+			release_assert (success (status2), error_string (status2));
 			auto map_size = options_a.config.map_size;
 			auto max_instrumented_map_size = 16 * 1024 * 1024;
 			if (memory_intensive_instrumentation () && map_size > max_instrumented_map_size)
@@ -35,7 +36,7 @@ void nano::store::lmdb::env::init (bool & error_a, std::filesystem::path const &
 				map_size = max_instrumented_map_size;
 			}
 			auto status3 (mdb_env_set_mapsize (environment, map_size));
-			release_assert (status3 == 0);
+			release_assert (success (status3), error_string (status3));
 			// It seems if there's ever more threads than mdb_env_set_maxreaders has read slots available, we get failures on transaction creation unless MDB_NOTLS is specified
 			// This can happen if something like 256 io_threads are specified in the node config
 			// MDB_NORDAHEAD will allow platforms that support it to load the DB in memory as needed.
@@ -59,13 +60,13 @@ void nano::store::lmdb::env::init (bool & error_a, std::filesystem::path const &
 				environment_flags |= MDB_NOMEMINIT;
 			}
 			auto status4 (mdb_env_open (environment, path_a.string ().c_str (), environment_flags, 00600));
-			if (status4 != 0)
+			if (!success (status4))
 			{
 				std::string message = "Could not open lmdb environment(" + std::to_string (status4) + "): " + mdb_strerror (status4);
 				throw std::runtime_error (message);
 			}
-			release_assert (status4 == 0);
-			error_a = status4 != 0;
+			release_assert (success (status4), error_string (status4));
+			error_a = !success (status4);
 		}
 		else
 		{

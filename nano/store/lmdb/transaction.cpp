@@ -3,6 +3,7 @@
 #include <nano/lib/thread_roles.hpp>
 #include <nano/lib/utility.hpp>
 #include <nano/store/component.hpp>
+#include <nano/store/lmdb/lmdb.hpp>
 #include <nano/store/lmdb/lmdb_env.hpp>
 #include <nano/store/lmdb/transaction_impl.hpp>
 
@@ -40,7 +41,7 @@ nano::store::lmdb::read_transaction_impl::read_transaction_impl (nano::store::lm
 	txn_callbacks (txn_callbacks_a)
 {
 	auto status (mdb_txn_begin (environment_a, nullptr, MDB_RDONLY, &handle));
-	release_assert (status == 0);
+	release_assert (success (status), error_string (status));
 	txn_callbacks.txn_start (this);
 }
 
@@ -48,7 +49,7 @@ nano::store::lmdb::read_transaction_impl::~read_transaction_impl ()
 {
 	// This uses commit rather than abort, as it is needed when opening databases with a read only transaction
 	auto status (mdb_txn_commit (handle));
-	release_assert (status == MDB_SUCCESS);
+	release_assert (success (status), error_string (status));
 	txn_callbacks.txn_end (this);
 }
 
@@ -61,7 +62,7 @@ void nano::store::lmdb::read_transaction_impl::reset ()
 void nano::store::lmdb::read_transaction_impl::renew ()
 {
 	auto status (mdb_txn_renew (handle));
-	release_assert (status == 0);
+	release_assert (success (status), error_string (status));
 	txn_callbacks.txn_start (this);
 }
 
@@ -88,10 +89,7 @@ void nano::store::lmdb::write_transaction_impl::commit ()
 	if (active)
 	{
 		auto status = mdb_txn_commit (handle);
-		if (status != MDB_SUCCESS)
-		{
-			release_assert (false && "Unable to write to the LMDB database", mdb_strerror (status));
-		}
+		release_assert (success (status) && "Unable to write to the LMDB database", error_string (status));
 		txn_callbacks.txn_end (this);
 		active = false;
 	}
@@ -100,7 +98,7 @@ void nano::store::lmdb::write_transaction_impl::commit ()
 void nano::store::lmdb::write_transaction_impl::renew ()
 {
 	auto status (mdb_txn_begin (env, nullptr, 0, &handle));
-	release_assert (status == MDB_SUCCESS, mdb_strerror (status));
+	release_assert (success (status), error_string (status));
 	txn_callbacks.txn_start (this);
 	active = true;
 }

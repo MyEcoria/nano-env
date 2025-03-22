@@ -10,7 +10,7 @@ bool nano::store::rocksdb::final_vote::put (store::write_transaction const & tra
 {
 	nano::store::rocksdb::db_val value;
 	auto status = store.get (transaction, tables::final_votes, root, value);
-	release_assert (store.success (status) || store.not_found (status));
+	release_assert (store.success (status) || store.not_found (status), store.error_string (status));
 	bool result (true);
 	if (store.success (status))
 	{

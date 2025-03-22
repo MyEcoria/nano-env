@@ -20,7 +20,7 @@ nano::uint128_t nano::store::rocksdb::rep_weight::get (store::transaction const 
 {
 	db_val value;
 	auto status = store.get (txn_a, tables::rep_weights, representative_a, value);
-	release_assert (store.success (status) || store.not_found (status));
+	release_assert (store.success (status) || store.not_found (status), store.error_string (status));
 	nano::uint128_t weight{ 0 };
 	if (store.success (status))
 	{

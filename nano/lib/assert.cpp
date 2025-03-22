@@ -1,5 +1,6 @@
 #include <nano/lib/assert.hpp>
 #include <nano/lib/files.hpp>
+#include <nano/lib/logging.hpp>
 #include <nano/lib/stacktrace.hpp>
 
 #include <boost/dll/runtime_symbol_info.hpp>
@@ -12,18 +13,23 @@
  */
 void assert_internal (char const * check_expr, char const * func, char const * file, unsigned int line, bool is_release_assert, std::string_view error_msg)
 {
-	std::cerr << "Assertion (" << check_expr << ") failed\n"
-			  << func << "\n"
-			  << file << ":" << line << "\n";
+	std::stringstream ss;
+	ss << "Assertion (" << check_expr << ") failed";
 	if (!error_msg.empty ())
 	{
-		std::cerr << "Error: " << error_msg << "\n";
+		ss << ": " << error_msg << "\n";
 	}
-	std::cerr << "\n";
+	ss << file << ":" << line << " [" << func << "]"
+	   << "'\n";
 
-	// Output stack trace to cerr
+	// Output stack trace
 	auto backtrace_str = nano::generate_stacktrace ();
-	std::cerr << backtrace_str << std::endl;
+	ss << backtrace_str;
+
+	// Output both to standard error and the default logger, so that the error info is persisted in the nano specific log directory
+	auto error_str = ss.str ();
+	std::cerr << error_str << std::endl;
+	nano::default_logger ().critical (nano::log::type::assert, "{}", error_str);
 
 	// "abort" at the end of this function will go into any signal handlers (the daemon ones will generate a stack trace and load memory address files on non-Windows systems).
 	// As there is no async-signal-safe way to generate stacktraces on Windows it must be done before aborting

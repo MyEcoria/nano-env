@@ -16,7 +16,7 @@ bool nano::store::lmdb::account::get (store::transaction const & transaction, na
 {
 	nano::store::lmdb::db_val value;
 	auto status1 (store.get (transaction, tables::accounts, account, value));
-	release_assert (store.success (status1) || store.not_found (status1));
+	release_assert (store.success (status1) || store.not_found (status1), store.error_string (status1));
 	bool result (true);
 	if (store.success (status1))
 	{

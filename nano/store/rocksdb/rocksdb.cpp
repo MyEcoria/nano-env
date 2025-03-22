@@ -247,8 +247,13 @@ void nano::store::rocksdb::component::upgrade_v21_to_v22 (store::write_transacti
 	if (column_family_exists ("unchecked"))
 	{
 		auto const unchecked_handle = get_column_family ("unchecked");
-		db->DropColumnFamily (unchecked_handle);
-		db->DestroyColumnFamilyHandle (unchecked_handle);
+
+		auto status1 = db->DropColumnFamily (unchecked_handle);
+		release_assert (success (status1.code ()), error_string (status1.code ()));
+
+		auto status2 = db->DestroyColumnFamilyHandle (unchecked_handle);
+		release_assert (success (status2.code ()), error_string (status2.code ()));
+
 		std::erase_if (handles, [unchecked_handle] (auto & handle) {
 			if (handle.get () == unchecked_handle)
 			{
@@ -274,9 +279,15 @@ void nano::store::rocksdb::component::upgrade_v22_to_v23 (store::write_transacti
 	if (column_family_exists ("rep_weights"))
 	{
 		logger.info (nano::log::type::rocksdb, "Dropping existing rep_weights table");
+
 		auto const rep_weights_handle = get_column_family ("rep_weights");
-		db->DropColumnFamily (rep_weights_handle);
-		db->DestroyColumnFamilyHandle (rep_weights_handle);
+
+		auto status1 = db->DropColumnFamily (rep_weights_handle);
+		release_assert (success (status1.code ()), error_string (status1.code ()));
+
+		auto status2 = db->DestroyColumnFamilyHandle (rep_weights_handle);
+		release_assert (success (status2.code ()), error_string (status2.code ()));
+
 		std::erase_if (handles, [rep_weights_handle] (auto & handle) {
 			if (handle.get () == rep_weights_handle)
 			{
@@ -294,7 +305,7 @@ void nano::store::rocksdb::component::upgrade_v22_to_v23 (store::write_transacti
 		::rocksdb::ColumnFamilyOptions new_cf_options;
 		::rocksdb::ColumnFamilyHandle * new_cf_handle;
 		::rocksdb::Status status = db->CreateColumnFamily (new_cf_options, "rep_weights", &new_cf_handle);
-		release_assert (success (status.code ()));
+		release_assert (success (status.code ()), error_string (status.code ()));
 		handles.emplace_back (new_cf_handle);
 		transaction.refresh ();
 	}
@@ -336,7 +347,7 @@ void nano::store::rocksdb::component::upgrade_v22_to_v23 (store::write_transacti
 			}
 			total += account_info.balance.number ();
 			status = put (transaction, tables::rep_weights, account_info.representative, nano::amount{ total });
-			release_assert_success (status);
+			release_assert (success (status), error_string (status));
 		}
 
 		processed++;
@@ -360,8 +371,13 @@ void nano::store::rocksdb::component::upgrade_v23_to_v24 (store::write_transacti
 	if (column_family_exists ("frontiers"))
 	{
 		auto const frontiers_handle = get_column_family ("frontiers");
-		db->DropColumnFamily (frontiers_handle);
-		db->DestroyColumnFamilyHandle (frontiers_handle);
+
+		auto status1 = db->DropColumnFamily (frontiers_handle);
+		release_assert (success (status1.code ()), error_string (status1.code ()));
+
+		auto status2 = db->DestroyColumnFamilyHandle (frontiers_handle);
+		release_assert (success (status2.code ()), error_string (status2.code ()));
+
 		std::erase_if (handles, [frontiers_handle] (auto & handle) {
 			if (handle.get () == frontiers_handle)
 			{
@@ -603,17 +619,17 @@ int nano::store::rocksdb::component::put (store::write_transaction const & trans
 
 bool nano::store::rocksdb::component::not_found (int status) const
 {
-	return (status_code_not_found () == status);
+	return nano::store::rocksdb::not_found (status);
 }
 
 bool nano::store::rocksdb::component::success (int status) const
 {
-	return (static_cast<int> (::rocksdb::Status::Code::kOk) == status);
+	return nano::store::rocksdb::success (status);
 }
 
-int nano::store::rocksdb::component::status_code_not_found () const
+std::string nano::store::rocksdb::component::error_string (int status) const
 {
-	return static_cast<int> (::rocksdb::Status::Code::kNotFound);
+	return nano::store::rocksdb::error_string (status);
 }
 
 uint64_t nano::store::rocksdb::component::count (store::transaction const & transaction_a, tables table_a) const
@@ -700,7 +716,7 @@ int nano::store::rocksdb::component::drop (store::write_transaction const & tran
 			for (auto i = peer.begin (transaction_a), n = peer.end (transaction_a); i != n; ++i)
 			{
 				status = del (transaction_a, tables::peers, nano::store::rocksdb::db_val (i->first));
-				release_assert (success (status));
+				release_assert (success (status), error_string (status));
 			}
 			return status;
 		}
@@ -725,7 +741,7 @@ int nano::store::rocksdb::component::clear (::rocksdb::ColumnFamilyHandle * colu
 	}
 
 	::rocksdb::Status status = db->Write (write_options, &write_batch);
-	release_assert (status.ok ());
+	release_assert (status.ok (), error_string (status.code ()));
 
 	return status.code ();
 }
@@ -921,13 +937,27 @@ unsigned nano::store::rocksdb::component::max_block_write_batch_num () const
 	return max_block_write_batch_num_m;
 }
 
-std::string nano::store::rocksdb::component::error_string (int status) const
-{
-	return std::to_string (status);
-}
-
 nano::store::rocksdb::component::tombstone_info::tombstone_info (uint64_t num_since_last_flush_a, uint64_t const max_a) :
 	num_since_last_flush (num_since_last_flush_a),
 	max (max_a)
 {
+}
+
+/*
+ *
+ */
+
+bool nano::store::rocksdb::not_found (int status)
+{
+	return (static_cast<int> (::rocksdb::Status::Code::kNotFound) == status);
+}
+
+bool nano::store::rocksdb::success (int status)
+{
+	return (static_cast<int> (::rocksdb::Status::Code::kOk) == status);
+}
+
+std::string nano::store::rocksdb::error_string (int status)
+{
+	return "status: " + std::to_string (status);
 }

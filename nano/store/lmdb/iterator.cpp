@@ -1,5 +1,6 @@
 #include <nano/lib/utility.hpp>
 #include <nano/store/lmdb/iterator.hpp>
+#include <nano/store/lmdb/lmdb.hpp>
 
 namespace nano::store::lmdb
 {
@@ -18,11 +19,11 @@ auto iterator::is_end () const -> bool
 
 void iterator::update (int status)
 {
-	if (status == MDB_SUCCESS)
+	if (success (status))
 	{
 		value_type init;
 		auto status = mdb_cursor_get (cursor.get (), &init.first, &init.second, MDB_GET_CURRENT);
-		release_assert (status == MDB_SUCCESS);
+		release_assert (success (status), error_string (status));
 		current = init;
 	}
 	else
@@ -35,7 +36,7 @@ iterator::iterator (MDB_txn * tx, MDB_dbi dbi) noexcept
 {
 	MDB_cursor * cursor;
 	auto open_status = mdb_cursor_open (tx, dbi, &cursor);
-	release_assert (open_status == MDB_SUCCESS);
+	release_assert (success (open_status), error_string (open_status));
 	this->cursor.reset (cursor);
 	this->current = std::monostate{};
 }
@@ -77,7 +78,7 @@ auto iterator::operator++ () -> iterator &
 {
 	auto operation = is_end () ? MDB_FIRST : MDB_NEXT;
 	auto status = mdb_cursor_get (cursor.get (), nullptr, nullptr, operation);
-	release_assert (status == MDB_SUCCESS || status == MDB_NOTFOUND);
+	release_assert (success (status) || not_found (status), error_string (status));
 	update (status);
 	return *this;
 }
@@ -86,7 +87,7 @@ auto iterator::operator-- () -> iterator &
 {
 	auto operation = is_end () ? MDB_LAST : MDB_PREV;
 	auto status = mdb_cursor_get (cursor.get (), nullptr, nullptr, operation);
-	release_assert (status == MDB_SUCCESS || status == MDB_NOTFOUND);
+	release_assert (success (status) || not_found (status), error_string (status));
 	update (status);
 	return *this;
 }
@@ -123,4 +124,4 @@ auto iterator::operator== (iterator const & other) const -> bool
 	debug_assert (std::make_pair (lhs.first.mv_data, lhs.first.mv_size) == std::make_pair (rhs.first.mv_data, rhs.first.mv_size) && std::make_pair (lhs.second.mv_data, lhs.second.mv_size) == std::make_pair (rhs.second.mv_data, rhs.second.mv_size));
 	return result;
 }
-} // namespace nano::store::lmdb
+}

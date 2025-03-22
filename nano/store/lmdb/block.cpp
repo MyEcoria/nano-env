@@ -150,7 +150,7 @@ void nano::store::lmdb::block::for_each_par (std::function<void (store::read_tra
 void nano::store::lmdb::block::block_raw_get (store::transaction const & transaction, nano::block_hash const & hash, nano::store::lmdb::db_val & value) const
 {
 	auto status = store.get (transaction, tables::blocks, hash, value);
-	release_assert (store.success (status) || store.not_found (status));
+	release_assert (store.success (status) || store.not_found (status), store.error_string (status));
 }
 
 size_t nano::store::lmdb::block::block_successor_offset (store::transaction const & transaction_a, size_t entry_size_a, nano::block_type type_a) const
