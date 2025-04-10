@@ -4,6 +4,7 @@
 #include <nano/lib/numbers.hpp>
 #include <nano/lib/threading.hpp>
 #include <nano/node/active_elections.hpp>
+#include <nano/node/bootstrap/bootstrap_service.hpp>
 #include <nano/node/confirmation_solicitor.hpp>
 #include <nano/node/confirming_set.hpp>
 #include <nano/node/election.hpp>
@@ -120,7 +121,8 @@ void nano::active_elections::run ()
 		node.stats.inc (nano::stat::type::active, nano::stat::detail::loop);
 
 		tick_elections (lock);
-		debug_assert (lock.owns_lock ());
+		debug_assert (!lock.owns_lock ());
+		lock.lock ();
 
 		auto const min_sleep = node.network_params.network.aec_loop_interval / 2;
 		auto const wakeup = std::max (stamp + node.network_params.network.aec_loop_interval, std::chrono::steady_clock::now () + min_sleep);
@@ -270,36 +272,39 @@ void nano::active_elections::tick_elections (nano::unique_lock<nano::mutex> & lo
 {
 	debug_assert (lock.owns_lock ());
 
-	auto const elections_l = list_active_impl ();
+	auto const election_list = list_active_impl ();
 
 	lock.unlock ();
 
 	nano::confirmation_solicitor solicitor (node.network, node.config);
 	solicitor.prepare (node.rep_crawler.principal_representatives (std::numeric_limits<std::size_t>::max ()));
 
-	std::size_t unconfirmed_count_l (0);
 	nano::timer<std::chrono::milliseconds> elapsed (nano::timer_state::started);
 
-	/*
-	 * Loop through active elections in descending order of proof-of-work difficulty, requesting confirmation
-	 *
-	 * Only up to a certain amount of elections are queued for confirmation request and block rebroadcasting. The remaining elections can still be confirmed if votes arrive
-	 * Elections extending the soft config.size limit are flushed after a certain time-to-live cutoff
-	 * Flushed elections are later re-activated via frontier confirmation
-	 */
-	for (auto const & election_l : elections_l)
+	std::deque<std::shared_ptr<nano::election>> stale_elections;
+	for (auto const & election : election_list)
 	{
-		bool const confirmed_l (election_l->confirmed ());
-		unconfirmed_count_l += !confirmed_l;
-
-		if (election_l->transition_time (solicitor))
+		if (election->transition_time (solicitor))
 		{
-			erase (election_l->qualified_root);
+			erase (election->qualified_root);
+		}
+		else if (election->duration () > config.bootstrap_stale_threshold)
+		{
+			stale_elections.push_back (election);
 		}
 	}
 
 	solicitor.flush ();
-	lock.lock ();
+
+	if (bootstrap_stale_interval.elapse (config.bootstrap_stale_threshold / 2))
+	{
+		node.stats.add (nano::stat::type::active_elections, nano::stat::detail::bootstrap_stale, stale_elections.size ());
+
+		for (auto const & election : stale_elections)
+		{
+			node.bootstrap.prioritize (election->account ());
+		}
+	}
 }
 
 void nano::active_elections::cleanup_election (nano::unique_lock<nano::mutex> & lock_a, std::shared_ptr<nano::election> election)
@@ -637,7 +642,8 @@ nano::error nano::active_elections_config::serialize (nano::tomlconfig & toml) c
 	toml.put ("optimistic_limit_percentage", optimistic_limit_percentage, "Limit of optimistic elections as percentage of `active_elections_size`. \ntype:uint64");
 	toml.put ("confirmation_history_size", confirmation_history_size, "Maximum confirmation history size. If tracking the rate of block confirmations, the websocket feature is recommended instead. \ntype:uint64");
 	toml.put ("confirmation_cache", confirmation_cache, "Maximum number of confirmed elections kept in cache to prevent restarting an election. \ntype:uint64");
-
+	toml.put ("max_election_winners", max_election_winners, "Maximum size of election winner details set. \ntype:uint64");
+	toml.put ("bootstrap_stale_threshold", bootstrap_stale_threshold.count (), "Time after which additional bootstrap attempts are made to find missing blocks for an election. \ntype:seconds");
 	return toml.get_error ();
 }
 
@@ -648,6 +654,8 @@ nano::error nano::active_elections_config::deserialize (nano::tomlconfig & toml)
 	toml.get ("optimistic_limit_percentage", optimistic_limit_percentage);
 	toml.get ("confirmation_history_size", confirmation_history_size);
 	toml.get ("confirmation_cache", confirmation_cache);
+	toml.get ("max_election_winners", max_election_winners);
+	toml.get_duration ("bootstrap_stale_threshold", bootstrap_stale_threshold);
 
 	return toml.get_error ();
 }

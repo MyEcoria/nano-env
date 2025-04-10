@@ -1,6 +1,7 @@
 #pragma once
 
 #include <nano/lib/enum_util.hpp>
+#include <nano/lib/interval.hpp>
 #include <nano/lib/numbers.hpp>
 #include <nano/lib/observer_set.hpp>
 #include <nano/node/election_behavior.hpp>
@@ -50,6 +51,8 @@ public:
 	std::size_t confirmation_cache{ 65536 };
 	// Maximum size of election winner details set
 	std::size_t max_election_winners{ 1024 * 16 };
+
+	std::chrono::seconds bootstrap_stale_threshold{ 60s };
 };
 
 /**
@@ -163,6 +166,8 @@ private:
 	nano::condition_variable condition;
 	bool stopped{ false };
 	std::thread thread;
+
+	nano::interval bootstrap_stale_interval;
 
 	friend class election;
 
