@@ -94,8 +94,8 @@ void nano::active_elections::start ()
 	debug_assert (!thread.joinable ());
 
 	thread = std::thread ([this] () {
-		nano::thread_role::set (nano::thread_role::name::request_loop);
-		request_loop ();
+		nano::thread_role::set (nano::thread_role::name::aec_loop);
+		run ();
 	});
 }
 
@@ -108,6 +108,27 @@ void nano::active_elections::stop ()
 	condition.notify_all ();
 	nano::join_or_pass (thread);
 	clear ();
+}
+
+void nano::active_elections::run ()
+{
+	nano::unique_lock<nano::mutex> lock{ mutex };
+	while (!stopped)
+	{
+		auto const stamp = std::chrono::steady_clock::now ();
+
+		node.stats.inc (nano::stat::type::active, nano::stat::detail::loop);
+
+		tick_elections (lock);
+		debug_assert (lock.owns_lock ());
+
+		auto const min_sleep = node.network_params.network.aec_loop_interval / 2;
+		auto const wakeup = std::max (stamp + node.network_params.network.aec_loop_interval, std::chrono::steady_clock::now () + min_sleep);
+
+		condition.wait_until (lock, wakeup, [this, wakeup] {
+			return stopped || std::chrono::steady_clock::now () >= wakeup;
+		});
+	}
 }
 
 auto nano::active_elections::block_cemented (std::shared_ptr<nano::block> const & block, nano::block_hash const & confirmation_root, std::shared_ptr<nano::election> const & source_election) -> block_cemented_result
@@ -245,14 +266,13 @@ int64_t nano::active_elections::vacancy (nano::election_behavior behavior) const
 	return std::min (election_vacancy (behavior), election_winners_vacancy ());
 }
 
-void nano::active_elections::request_confirm (nano::unique_lock<nano::mutex> & lock_a)
+void nano::active_elections::tick_elections (nano::unique_lock<nano::mutex> & lock)
 {
-	debug_assert (lock_a.owns_lock ());
+	debug_assert (lock.owns_lock ());
 
-	std::size_t const this_loop_target_l (roots.size ());
-	auto const elections_l{ list_active_impl (this_loop_target_l) };
+	auto const elections_l = list_active_impl ();
 
-	lock_a.unlock ();
+	lock.unlock ();
 
 	nano::confirmation_solicitor solicitor (node.network, node.config);
 	solicitor.prepare (node.rep_crawler.principal_representatives (std::numeric_limits<std::size_t>::max ()));
@@ -279,7 +299,7 @@ void nano::active_elections::request_confirm (nano::unique_lock<nano::mutex> & l
 	}
 
 	solicitor.flush ();
-	lock_a.lock ();
+	lock.lock ();
 }
 
 void nano::active_elections::cleanup_election (nano::unique_lock<nano::mutex> & lock_a, std::shared_ptr<nano::election> election)
@@ -342,46 +362,24 @@ void nano::active_elections::cleanup_election (nano::unique_lock<nano::mutex> & 
 	}
 }
 
-std::vector<std::shared_ptr<nano::election>> nano::active_elections::list_active (std::size_t max_a)
+std::vector<std::shared_ptr<nano::election>> nano::active_elections::list_active (std::size_t max_count)
 {
 	nano::lock_guard<nano::mutex> guard{ mutex };
-	return list_active_impl (max_a);
+	return list_active_impl (max_count);
 }
 
-std::vector<std::shared_ptr<nano::election>> nano::active_elections::list_active_impl (std::size_t max_a) const
+std::vector<std::shared_ptr<nano::election>> nano::active_elections::list_active_impl (std::size_t max_count) const
 {
 	std::vector<std::shared_ptr<nano::election>> result_l;
-	result_l.reserve (std::min (max_a, roots.size ()));
+	result_l.reserve (std::min (max_count, roots.size ()));
 	{
 		auto & sorted_roots_l (roots.get<tag_sequenced> ());
-		std::size_t count_l{ 0 };
-		for (auto i = sorted_roots_l.begin (), n = sorted_roots_l.end (); i != n && count_l < max_a; ++i, ++count_l)
+		for (auto i = sorted_roots_l.begin (), n = sorted_roots_l.end (); i != n && result_l.size () < max_count; ++i)
 		{
 			result_l.push_back (i->election);
 		}
 	}
 	return result_l;
-}
-
-void nano::active_elections::request_loop ()
-{
-	nano::unique_lock<nano::mutex> lock{ mutex };
-	while (!stopped)
-	{
-		auto const stamp_l = std::chrono::steady_clock::now ();
-
-		node.stats.inc (nano::stat::type::active, nano::stat::detail::loop);
-
-		request_confirm (lock);
-		debug_assert (lock.owns_lock ());
-
-		if (!stopped)
-		{
-			auto const min_sleep_l = std::chrono::milliseconds (node.network_params.network.aec_loop_interval_ms / 2);
-			auto const wakeup_l = std::max (stamp_l + std::chrono::milliseconds (node.network_params.network.aec_loop_interval_ms), std::chrono::steady_clock::now () + min_sleep_l);
-			condition.wait_until (lock, wakeup_l, [&wakeup_l, &stopped = stopped] { return stopped || std::chrono::steady_clock::now () >= wakeup_l; });
-		}
-	}
 }
 
 nano::election_insertion_result nano::active_elections::insert (std::shared_ptr<nano::block> const & block_a, nano::election_behavior election_behavior_a, erased_callback_t erased_callback_a)

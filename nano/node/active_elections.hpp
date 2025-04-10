@@ -129,8 +129,9 @@ public: // Events
 	nano::observer_set<> vacancy_updated;
 
 private:
-	void request_loop ();
-	void request_confirm (nano::unique_lock<nano::mutex> &);
+	void run ();
+	void tick_elections (nano::unique_lock<nano::mutex> &);
+
 	// Erase all blocks from active and, if not confirmed, clear digests from network filters
 	void cleanup_election (nano::unique_lock<nano::mutex> & lock_a, std::shared_ptr<nano::election>);
 
@@ -139,7 +140,7 @@ private:
 	void notify_observers (nano::secure::transaction const &, nano::election_status const & status, std::vector<nano::vote_with_weight_info> const & votes) const;
 
 	std::shared_ptr<nano::election> election_impl (nano::qualified_root const &) const;
-	std::vector<std::shared_ptr<nano::election>> list_active_impl (std::size_t max_count) const;
+	std::vector<std::shared_ptr<nano::election>> list_active_impl (std::size_t max_count = std::numeric_limits<std::size_t>::max ()) const;
 
 private: // Dependencies
 	active_elections_config const & config;
