@@ -367,6 +367,11 @@ nano::node::node (std::shared_ptr<boost::asio::io_context> io_ctx_a, std::filesy
 			}
 		}
 
+		if (flags.enable_voting)
+		{
+			config.enable_voting = true;
+		}
+
 		if (config.enable_voting)
 		{
 			logger.info (nano::log::type::node, "Voting is enabled, more system resources will be used, local representatives: {}", reps.accounts.size ());
