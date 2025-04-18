@@ -211,6 +211,10 @@ nano::error nano::node_config::serialize_toml (nano::tomlconfig & toml) const
 	optimistic_scheduler.serialize (optimistic_l);
 	toml.put_child ("optimistic_scheduler", optimistic_l);
 
+	nano::tomlconfig hinted_l;
+	hinted_scheduler.serialize (hinted_l);
+	toml.put_child ("hinted_scheduler", hinted_l);
+
 	nano::tomlconfig priority_bucket_l;
 	priority_bucket.serialize (priority_bucket_l);
 	toml.put_child ("priority_bucket", priority_bucket_l);
