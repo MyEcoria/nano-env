@@ -195,8 +195,11 @@ void nano::local_block_broadcaster::run_broadcasts (nano::unique_lock<nano::mute
 		entry.block->hash (),
 		entry.rebroadcasts);
 
-		stats.inc (nano::stat::type::local_block_broadcaster, nano::stat::detail::broadcast, nano::stat::dir::out);
-		network.flood_block_initial (entry.block);
+		stats.inc (nano::stat::type::local_block_broadcaster, nano::stat::detail::broadcast);
+
+		auto sent = network.flood_block_initial (entry.block);
+
+		stats.add (nano::stat::type::local_block_broadcaster, nano::stat::detail::sent, sent);
 	}
 }
 
