@@ -214,6 +214,10 @@ nano::error nano::node_config::serialize_toml (nano::tomlconfig & toml) const
 	hinted_scheduler.serialize (hinted_l);
 	toml.put_child ("hinted_scheduler", hinted_l);
 
+	nano::tomlconfig priority_l;
+	priority_scheduler.serialize (priority_l);
+	toml.put_child ("priority_scheduler", priority_l);
+
 	nano::tomlconfig priority_bucket_l;
 	priority_bucket.serialize (priority_bucket_l);
 	toml.put_child ("priority_bucket", priority_bucket_l);
@@ -353,6 +357,12 @@ nano::error nano::node_config::deserialize_toml (nano::tomlconfig & toml)
 		{
 			auto config_l = toml.get_required_child ("hinted_scheduler");
 			hinted_scheduler.deserialize (config_l);
+		}
+
+		if (toml.has_key ("priority_scheduler"))
+		{
+			auto config_l = toml.get_required_child ("priority_scheduler");
+			priority_scheduler.deserialize (config_l);
 		}
 
 		if (toml.has_key ("priority_bucket"))
