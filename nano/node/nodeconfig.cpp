@@ -290,6 +290,10 @@ nano::error nano::node_config::serialize_toml (nano::tomlconfig & toml) const
 	cementing_set.serialize (cementing_set_l);
 	toml.put_child ("cementing_set", cementing_set_l);
 
+	nano::tomlconfig local_block_broadcaster_l;
+	local_block_broadcaster.serialize (local_block_broadcaster_l);
+	toml.put_child ("local_block_broadcaster", local_block_broadcaster_l);
+
 	return toml.get_error ();
 }
 
@@ -463,6 +467,12 @@ nano::error nano::node_config::deserialize_toml (nano::tomlconfig & toml)
 		{
 			auto config_l = toml.get_required_child ("cementing_set");
 			cementing_set.deserialize (config_l);
+		}
+
+		if (toml.has_key ("local_block_broadcaster"))
+		{
+			auto config_l = toml.get_required_child ("local_block_broadcaster");
+			local_block_broadcaster.deserialize (config_l);
 		}
 
 		/*
