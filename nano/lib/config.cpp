@@ -183,6 +183,19 @@ size_t nano::queue_warning_threshold ()
 	return env_override.value_or (100);
 }
 
+size_t nano::ledger_thread_stack_size ()
+{
+	static auto const env_override = [] () -> std::optional<size_t> {
+		if (auto value = nano::env::get<size_t> ("NANO_LEDGER_THREAD_STACK_SIZE"))
+		{
+			std::cerr << "Ledger thread stack size overridden by NANO_LEDGER_THREAD_STACK_SIZE environment variable: " << *value << std::endl;
+			return *value;
+		}
+		return std::nullopt;
+	}();
+	return env_override.value_or (128 * 1024 * 1024);
+}
+
 std::string_view nano::to_string (nano::networks network)
 {
 	switch (network)

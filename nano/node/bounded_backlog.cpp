@@ -1,4 +1,5 @@
 #include <nano/lib/blocks.hpp>
+#include <nano/lib/config.hpp>
 #include <nano/lib/thread_roles.hpp>
 #include <nano/node/backlog_scan.hpp>
 #include <nano/node/block_processor.hpp>
@@ -99,15 +100,18 @@ void nano::bounded_backlog::start ()
 		return;
 	}
 
-	thread = std::thread{ [this] () {
+	boost::thread::attributes attrs;
+	attrs.set_stack_size (nano::ledger_thread_stack_size ());
+
+	thread = boost::thread (attrs, [this] () {
 		nano::thread_role::set (nano::thread_role::name::bounded_backlog);
 		run ();
-	} };
+	});
 
-	scan_thread = std::thread{ [this] () {
+	scan_thread = std::thread ([this] () {
 		nano::thread_role::set (nano::thread_role::name::bounded_backlog_scan);
 		run_scan ();
-	} };
+	});
 }
 
 void nano::bounded_backlog::stop ()
