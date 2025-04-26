@@ -36,10 +36,12 @@ namespace
 class rollback_visitor : public nano::block_visitor
 {
 public:
-	rollback_visitor (nano::secure::write_transaction const & transaction_a, nano::ledger & ledger_a, std::deque<std::shared_ptr<nano::block>> & list_a) :
+	rollback_visitor (nano::secure::write_transaction const & transaction_a, nano::ledger & ledger_a, std::deque<std::shared_ptr<nano::block>> & list_a, size_t depth_a, size_t max_depth_a) :
 		transaction (transaction_a),
 		ledger (ledger_a),
-		list (list_a)
+		list (list_a),
+		depth (depth_a),
+		max_depth (max_depth_a)
 	{
 	}
 	virtual ~rollback_visitor () = default;
@@ -50,7 +52,7 @@ public:
 		auto pending = ledger.store.pending.get (transaction, key);
 		while (!error && !pending.has_value ())
 		{
-			error = ledger.rollback (transaction, ledger.any.account_head (transaction, block_a.hashables.destination), list);
+			error = ledger.rollback (transaction, ledger.any.account_head (transaction, block_a.hashables.destination), list, depth + 1, max_depth);
 			pending = ledger.store.pending.get (transaction, key);
 		}
 		if (!error)
@@ -147,7 +149,7 @@ public:
 			nano::pending_key key (block_a.hashables.link.as_account (), hash);
 			while (!error && !ledger.any.pending_get (transaction, key))
 			{
-				error = ledger.rollback (transaction, ledger.any.account_head (transaction, block_a.hashables.link.as_account ()), list);
+				error = ledger.rollback (transaction, ledger.any.account_head (transaction, block_a.hashables.link.as_account ()), list, depth + 1, max_depth);
 			}
 			ledger.store.pending.del (transaction, key);
 			ledger.stats.inc (nano::stat::type::rollback, nano::stat::detail::send);
@@ -180,6 +182,8 @@ public:
 	nano::secure::write_transaction const & transaction;
 	nano::ledger & ledger;
 	std::deque<std::shared_ptr<nano::block>> & list;
+	size_t const depth;
+	size_t const max_depth;
 	bool error{ false };
 };
 
@@ -1016,12 +1020,19 @@ nano::uint128_t nano::ledger::weight_exact (secure::transaction const & txn_a, n
 }
 
 // Rollback blocks until `block_a' doesn't exist or it tries to penetrate the confirmation height
-bool nano::ledger::rollback (secure::write_transaction const & transaction_a, nano::block_hash const & block_a, std::deque<std::shared_ptr<nano::block>> & list_a)
+// TODO: Refactor rollback operation to use non-recursive algorithm
+bool nano::ledger::rollback (secure::write_transaction const & transaction_a, nano::block_hash const & block_a, std::deque<std::shared_ptr<nano::block>> & list_a, size_t depth, size_t const max_depth)
 {
+	if (depth > max_depth)
+	{
+		logger.critical (nano::log::type::ledger, "Rollback depth exceeded: {} (max depth: {})", depth, max_depth);
+		return true; // Error
+	}
+
 	debug_assert (any.block_exists (transaction_a, block_a));
 	auto account_l = any.block_account (transaction_a, block_a).value ();
 	auto block_account_height (any.block_height (transaction_a, block_a));
-	rollback_visitor rollback (transaction_a, *this, list_a);
+	rollback_visitor rollback (transaction_a, *this, list_a, depth, max_depth);
 	auto error (false);
 	while (!error && any.block_exists (transaction_a, block_a))
 	{
@@ -1033,11 +1044,11 @@ bool nano::ledger::rollback (secure::write_transaction const & transaction_a, na
 			release_assert (info);
 			auto block_l = any.block_get (transaction_a, info->head);
 			release_assert (block_l != nullptr);
-			list_a.push_back (block_l);
 			block_l->visit (rollback);
 			error = rollback.error;
 			if (!error)
 			{
+				list_a.push_back (block_l);
 				--cache.block_count;
 			}
 		}
