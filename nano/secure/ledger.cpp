@@ -118,28 +118,9 @@ public:
 	}
 	void state_block (nano::state_block const & block_a) override
 	{
-		auto hash (block_a.hash ());
-		nano::block_hash rep_block_hash (0);
-		if (!block_a.hashables.previous.is_zero ())
-		{
-			rep_block_hash = ledger.representative (transaction, block_a.hashables.previous);
-		}
-		nano::uint128_t balance = ledger.any.block_balance (transaction, block_a.hashables.previous).value_or (0).number ();
-		auto is_send (block_a.hashables.balance < balance);
-		nano::account representative{};
-		if (!rep_block_hash.is_zero ())
-		{
-			// Move existing representation & add in amount delta
-			auto block (ledger.store.block.get (transaction, rep_block_hash));
-			release_assert (block != nullptr);
-			representative = block->representative_field ().value ();
-			ledger.cache.rep_weights.representation_add_dual (transaction, representative, balance, block_a.hashables.representative, 0 - block_a.hashables.balance.number ());
-		}
-		else
-		{
-			// Add in amount delta only
-			ledger.cache.rep_weights.representation_add (transaction, block_a.hashables.representative, 0 - block_a.hashables.balance.number ());
-		}
+		auto const hash = block_a.hash ();
+		auto const previous_balance = ledger.any.block_balance (transaction, block_a.hashables.previous).value_or (0).number ();
+		bool const is_send = block_a.hashables.balance < previous_balance;
 
 		auto info = ledger.any.account_get (transaction, block_a.hashables.account);
 		release_assert (info);
@@ -151,6 +132,10 @@ public:
 			{
 				error = ledger.rollback (transaction, ledger.any.account_head (transaction, block_a.hashables.link.as_account ()), list, depth + 1, max_depth);
 			}
+			if (error)
+			{
+				return;
+			}
 			ledger.store.pending.del (transaction, key);
 			ledger.stats.inc (nano::stat::type::rollback, nano::stat::detail::send);
 		}
@@ -158,14 +143,36 @@ public:
 		{
 			// Pending account entry can be incorrect if source block was pruned. But it's not affecting correct ledger processing
 			auto source_account = ledger.any.block_account (transaction, block_a.hashables.link.as_block_hash ());
-			nano::pending_info pending_info (source_account.value_or (0), block_a.hashables.balance.number () - balance, block_a.sideband ().source_epoch);
+			nano::pending_info pending_info (source_account.value_or (0), block_a.hashables.balance.number () - previous_balance, block_a.sideband ().source_epoch);
 			ledger.store.pending.put (transaction, nano::pending_key (block_a.hashables.account, block_a.hashables.link.as_block_hash ()), pending_info);
 			ledger.stats.inc (nano::stat::type::rollback, nano::stat::detail::receive);
 		}
 
-		debug_assert (!error);
+		release_assert (!error);
+
+		nano::block_hash rep_block_hash (0);
+		if (!block_a.hashables.previous.is_zero ())
+		{
+			rep_block_hash = ledger.representative (transaction, block_a.hashables.previous);
+		}
+
+		nano::account representative{};
+		if (!rep_block_hash.is_zero ())
+		{
+			// Move existing representation & add in amount delta
+			auto rep_block (ledger.store.block.get (transaction, rep_block_hash));
+			release_assert (rep_block != nullptr);
+			representative = rep_block->representative_field ().value ();
+			ledger.cache.rep_weights.representation_add_dual (transaction, representative, previous_balance, block_a.hashables.representative, 0 - block_a.hashables.balance.number ());
+		}
+		else
+		{
+			// Add in amount delta only
+			ledger.cache.rep_weights.representation_add (transaction, block_a.hashables.representative, 0 - block_a.hashables.balance.number ());
+		}
+
 		auto previous_version (ledger.version (transaction, block_a.hashables.previous));
-		nano::account_info new_info (block_a.hashables.previous, representative, info->open_block, balance, nano::seconds_since_epoch (), info->block_count - 1, previous_version);
+		nano::account_info new_info (block_a.hashables.previous, representative, info->open_block, previous_balance, nano::seconds_since_epoch (), info->block_count - 1, previous_version);
 		ledger.update_account (transaction, block_a.hashables.account, *info, new_info);
 
 		auto previous (ledger.store.block.get (transaction, block_a.hashables.previous));
