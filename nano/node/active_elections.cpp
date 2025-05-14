@@ -182,8 +182,10 @@ auto nano::active_elections::block_cemented (std::shared_ptr<nano::block> const 
 
 void nano::active_elections::notify_observers (nano::secure::transaction const & transaction, nano::election_status const & status, std::vector<nano::vote_with_weight_info> const & votes) const
 {
-	auto block = status.winner;
-	auto account = block->account ();
+	// Get block from ledger to ensure sideband is set (forked blocks may not have sideband)
+	auto const block = node.ledger.any.block_get (transaction, status.winner->hash ());
+	release_assert (block != nullptr); // Block must exist in the ledger since it was cemented
+	auto const account = block->account ();
 
 	switch (status.type)
 	{
@@ -209,6 +211,7 @@ void nano::active_elections::notify_observers (nano::secure::transaction const &
 	}
 
 	node.observers.account_balance.notify (account, false);
+
 	if (block->is_send ())
 	{
 		node.observers.account_balance.notify (block->destination (), true);
