@@ -303,7 +303,7 @@ void nano::active_elections::tick_elections (nano::unique_lock<nano::mutex> & lo
 		for (auto const & election : stale_elections)
 		{
 			node.logger.debug (nano::log::type::active_elections, "Bootstrapping account: {} with stale election with root: {}, blocks: {} (behavior: {}, state: {}, voters: {}, blocks: {}, duration: {}ms)",
-			election->account (),
+			election->account,
 			election->qualified_root,
 			fmt::join (election->blocks_hashes (), ", "), // TODO: Lazy eval
 			to_string (election->behavior ()),
@@ -312,7 +312,7 @@ void nano::active_elections::tick_elections (nano::unique_lock<nano::mutex> & lo
 			election->block_count (),
 			election->duration ().count ());
 
-			node.bootstrap.prioritize (election->account ());
+			node.bootstrap.prioritize (election->account);
 		}
 	}
 }
