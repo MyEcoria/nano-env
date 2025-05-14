@@ -29,7 +29,8 @@ nano::active_elections::active_elections (nano::node & node_a, nano::ledger_noti
 	ledger_notifications{ ledger_notifications_a },
 	cementing_set{ cementing_set_a },
 	recently_confirmed{ config.confirmation_cache },
-	recently_cemented{ config.confirmation_history_size }
+	recently_cemented{ config.confirmation_history_size },
+	workers{ 1, nano::thread_role::name::aec_notifications }
 {
 	count_by_behavior.fill (0); // Zero initialize array
 
@@ -45,15 +46,16 @@ nano::active_elections::active_elections (nano::node & node_a, nano::ledger_noti
 				results.push_back (result);
 			}
 		}
-		{
-			// TODO: This could be offloaded to a separate notification worker, profiling is needed
+
+		// Notify observers about cemented blocks on a background thread
+		workers.post ([this, results = std::move (results)] () {
 			auto transaction = node.ledger.tx_begin_read ();
 			for (auto const & [status, votes] : results)
 			{
 				transaction.refresh_if_needed ();
 				notify_observers (transaction, status, votes);
 			}
-		}
+		});
 	});
 
 	// Notify elections about alternative (forked) blocks
@@ -87,6 +89,8 @@ nano::active_elections::~active_elections ()
 
 void nano::active_elections::start ()
 {
+	workers.start ();
+
 	if (node.flags.disable_request_loop)
 	{
 		return;
@@ -107,7 +111,12 @@ void nano::active_elections::stop ()
 		stopped = true;
 	}
 	condition.notify_all ();
-	nano::join_or_pass (thread);
+	if (thread.joinable ())
+	{
+		thread.join ();
+	}
+	workers.stop ();
+
 	clear ();
 }
 
@@ -649,6 +658,7 @@ nano::container_info nano::active_elections::container_info () const
 
 	info.add ("recently_confirmed", recently_confirmed.container_info ());
 	info.add ("recently_cemented", recently_cemented.container_info ());
+	info.add ("workers", workers.container_info ());
 
 	return info;
 }
