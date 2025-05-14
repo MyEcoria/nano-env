@@ -324,7 +324,7 @@ void nano::active_elections::cleanup_election (nano::unique_lock<nano::mutex> & 
 	debug_assert (!election->confirmed () || recently_confirmed.exists (election->qualified_root));
 
 	// Keep track of election count by election type
-	debug_assert (count_by_behavior[election->behavior ()] > 0);
+	release_assert (count_by_behavior[election->behavior ()] > 0);
 	count_by_behavior[election->behavior ()]--;
 
 	auto blocks_l = election->blocks ();
@@ -403,8 +403,8 @@ std::vector<std::shared_ptr<nano::election>> nano::active_elections::list_active
 
 nano::election_insertion_result nano::active_elections::insert (std::shared_ptr<nano::block> const & block_a, nano::election_behavior election_behavior_a, erased_callback_t erased_callback_a)
 {
-	debug_assert (block_a);
-	debug_assert (block_a->has_sideband ());
+	release_assert (block_a);
+	release_assert (block_a->has_sideband ());
 
 	nano::unique_lock<nano::mutex> lock{ mutex };
 
@@ -435,7 +435,7 @@ nano::election_insertion_result nano::active_elections::insert (std::shared_ptr<
 			node.vote_router.connect (hash, result.election);
 
 			// Keep track of election count by election type
-			debug_assert (count_by_behavior[result.election->behavior ()] >= 0);
+			release_assert (count_by_behavior[result.election->behavior ()] >= 0);
 			count_by_behavior[result.election->behavior ()]++;
 
 			// Skip passive phase for blocks without cached votes to avoid bootstrap delays
@@ -495,7 +495,7 @@ nano::election_insertion_result nano::active_elections::insert (std::shared_ptr<
 
 	if (result.inserted)
 	{
-		debug_assert (result.election);
+		release_assert (result.election);
 
 		// Notifications
 		node.observers.active_started.notify (hash);
