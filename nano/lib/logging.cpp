@@ -117,6 +117,12 @@ void nano::logger::initialize_for_tests (nano::log_config fallback)
 	global_initialized = true;
 }
 
+void nano::logger::initialize_dummy ()
+{
+	initialize_common (nano::log_config::dummy_default (), std::nullopt);
+	global_initialized = true;
+}
+
 // Using std::cerr here, since logging may not be initialized yet
 void nano::logger::initialize_common (nano::log_config const & config, std::optional<std::filesystem::path> data_path)
 {
@@ -310,7 +316,7 @@ nano::log_config nano::log_config::cli_default ()
 {
 	log_config config{};
 	config.default_level = nano::log::level::critical;
-	config.console.colors = false; // to avoid printing warning about cerr and colors
+	config.console.colors = false;
 	config.console.to_cerr = true; // Use cerr to avoid interference with CLI output that goes to stdout
 	config.file.enable = false;
 	return config;
@@ -327,6 +333,16 @@ nano::log_config nano::log_config::tests_default ()
 {
 	log_config config{};
 	config.default_level = nano::log::level::off;
+	config.file.enable = false;
+	return config;
+}
+
+nano::log_config nano::log_config::dummy_default ()
+{
+	log_config config{};
+	config.default_level = nano::log::level::off;
+	config.flush_level = nano::log::level::off;
+	config.console.enable = false;
 	config.file.enable = false;
 	return config;
 }

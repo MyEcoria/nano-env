@@ -137,6 +137,7 @@ public: // Predefined defaults
 	static log_config cli_default ();
 	static log_config daemon_default ();
 	static log_config tests_default ();
+	static log_config dummy_default (); // For empty logger
 	static log_config sample_config (); // For auto-generated sample config files
 
 private:
@@ -158,6 +159,7 @@ public:
 public:
 	static void initialize (nano::log_config fallback, std::optional<std::filesystem::path> data_path = std::nullopt, std::vector<std::string> const & config_overrides = {});
 	static void initialize_for_tests (nano::log_config fallback);
+	static void initialize_dummy (); // TODO: This is less than ideal, provide `nano::dummy_logger ()` instead
 	static void flush ();
 
 private:
