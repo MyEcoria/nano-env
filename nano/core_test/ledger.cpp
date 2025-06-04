@@ -678,11 +678,11 @@ TEST (ledger, representation_changes)
 	auto store{ nano::test::make_store () };
 	nano::keypair key1;
 	nano::rep_weights rep_weights{ store->rep_weight };
-	ASSERT_EQ (0, rep_weights.representation_get (key1.pub));
-	rep_weights.representation_put (key1.pub, 1);
-	ASSERT_EQ (1, rep_weights.representation_get (key1.pub));
-	rep_weights.representation_put (key1.pub, 2);
-	ASSERT_EQ (2, rep_weights.representation_get (key1.pub));
+	ASSERT_EQ (0, rep_weights.get (key1.pub));
+	rep_weights.put (key1.pub, 1);
+	ASSERT_EQ (1, rep_weights.get (key1.pub));
+	rep_weights.put (key1.pub, 2);
+	ASSERT_EQ (2, rep_weights.get (key1.pub));
 }
 
 TEST (ledger, delete_rep_weight_of_zero)
@@ -690,17 +690,23 @@ TEST (ledger, delete_rep_weight_of_zero)
 	auto store{ nano::test::make_store () };
 	nano::rep_weights rep_weights{ store->rep_weight };
 	auto txn{ store->tx_begin_write () };
-	rep_weights.representation_add (txn, 1, 100);
-	rep_weights.representation_add_dual (txn, 2, 100, 3, 100);
+	rep_weights.add (txn, 1, 100);
+	rep_weights.add (txn, 2, 200);
+	ASSERT_EQ (2, rep_weights.size ());
+	rep_weights.move_add_sub (txn, 2, 100, 3, 120);
 	ASSERT_EQ (3, rep_weights.size ());
 	ASSERT_EQ (3, store->rep_weight.count (txn));
 
-	// set rep weights to 0
-	rep_weights.representation_add (txn, 1, nano::uint128_t{ 0 } - 100);
+	// Reduce rep weights to 0
+	rep_weights.sub (txn, 1, 100);
 	ASSERT_EQ (2, rep_weights.size ());
 	ASSERT_EQ (2, store->rep_weight.count (txn));
 
-	rep_weights.representation_add_dual (txn, 2, nano::uint128_t{ 0 } - 100, 3, nano::uint128_t{ 0 } - 100);
+	rep_weights.move_add_sub (txn, 3, 120, 2, 100);
+	ASSERT_EQ (1, rep_weights.size ());
+	ASSERT_EQ (1, store->rep_weight.count (txn));
+
+	rep_weights.sub (txn, 2, 200);
 	ASSERT_EQ (0, rep_weights.size ());
 	ASSERT_EQ (0, store->rep_weight.count (txn));
 }
@@ -713,22 +719,22 @@ TEST (ledger, rep_cache_min_weight)
 	auto txn{ store->tx_begin_write () };
 
 	// one below min weight
-	rep_weights.representation_add (txn, 1, 9);
+	rep_weights.add (txn, 1, 9);
 	ASSERT_EQ (0, rep_weights.size ());
 	ASSERT_EQ (1, store->rep_weight.count (txn));
 
 	// exactly min weight
-	rep_weights.representation_add (txn, 1, 1);
+	rep_weights.add (txn, 1, 1);
 	ASSERT_EQ (1, rep_weights.size ());
 	ASSERT_EQ (1, store->rep_weight.count (txn));
 
 	// above min weight
-	rep_weights.representation_add (txn, 1, 1);
+	rep_weights.add (txn, 1, 1);
 	ASSERT_EQ (1, rep_weights.size ());
 	ASSERT_EQ (1, store->rep_weight.count (txn));
 
 	// fall blow min weight
-	rep_weights.representation_add (txn, 1, nano::uint128_t{ 0 } - 5);
+	rep_weights.sub (txn, 1, 5);
 	ASSERT_EQ (0, rep_weights.size ());
 	ASSERT_EQ (1, store->rep_weight.count (txn));
 }
@@ -741,7 +747,7 @@ TEST (ledger, representation)
 	auto & rep_weights = ledger.rep_weights;
 	auto transaction = ledger.tx_begin_write ();
 	auto & pool = ctx.pool ();
-	ASSERT_EQ (nano::dev::constants.genesis_amount, rep_weights.representation_get (nano::dev::genesis_key.pub));
+	ASSERT_EQ (nano::dev::constants.genesis_amount, rep_weights.get (nano::dev::genesis_key.pub));
 	nano::keypair key2;
 	nano::block_builder builder;
 	auto block1 = builder
@@ -753,7 +759,7 @@ TEST (ledger, representation)
 				  .work (*pool.generate (nano::dev::genesis->hash ()))
 				  .build ();
 	ASSERT_EQ (nano::block_status::progress, ledger.process (transaction, block1));
-	ASSERT_EQ (nano::dev::constants.genesis_amount - 100, rep_weights.representation_get (nano::dev::genesis_key.pub));
+	ASSERT_EQ (nano::dev::constants.genesis_amount - 100, rep_weights.get (nano::dev::genesis_key.pub));
 	nano::keypair key3;
 	auto block2 = builder
 				  .open ()
@@ -764,9 +770,9 @@ TEST (ledger, representation)
 				  .work (*pool.generate (key2.pub))
 				  .build ();
 	ASSERT_EQ (nano::block_status::progress, ledger.process (transaction, block2));
-	ASSERT_EQ (nano::dev::constants.genesis_amount - 100, rep_weights.representation_get (nano::dev::genesis_key.pub));
-	ASSERT_EQ (0, rep_weights.representation_get (key2.pub));
-	ASSERT_EQ (100, rep_weights.representation_get (key3.pub));
+	ASSERT_EQ (nano::dev::constants.genesis_amount - 100, rep_weights.get (nano::dev::genesis_key.pub));
+	ASSERT_EQ (0, rep_weights.get (key2.pub));
+	ASSERT_EQ (100, rep_weights.get (key3.pub));
 	auto block3 = builder
 				  .send ()
 				  .previous (block1->hash ())
@@ -776,9 +782,9 @@ TEST (ledger, representation)
 				  .work (*pool.generate (block1->hash ()))
 				  .build ();
 	ASSERT_EQ (nano::block_status::progress, ledger.process (transaction, block3));
-	ASSERT_EQ (nano::dev::constants.genesis_amount - 200, rep_weights.representation_get (nano::dev::genesis_key.pub));
-	ASSERT_EQ (0, rep_weights.representation_get (key2.pub));
-	ASSERT_EQ (100, rep_weights.representation_get (key3.pub));
+	ASSERT_EQ (nano::dev::constants.genesis_amount - 200, rep_weights.get (nano::dev::genesis_key.pub));
+	ASSERT_EQ (0, rep_weights.get (key2.pub));
+	ASSERT_EQ (100, rep_weights.get (key3.pub));
 	auto block4 = builder
 				  .receive ()
 				  .previous (block2->hash ())
@@ -787,9 +793,9 @@ TEST (ledger, representation)
 				  .work (*pool.generate (block2->hash ()))
 				  .build ();
 	ASSERT_EQ (nano::block_status::progress, ledger.process (transaction, block4));
-	ASSERT_EQ (nano::dev::constants.genesis_amount - 200, rep_weights.representation_get (nano::dev::genesis_key.pub));
-	ASSERT_EQ (0, rep_weights.representation_get (key2.pub));
-	ASSERT_EQ (200, rep_weights.representation_get (key3.pub));
+	ASSERT_EQ (nano::dev::constants.genesis_amount - 200, rep_weights.get (nano::dev::genesis_key.pub));
+	ASSERT_EQ (0, rep_weights.get (key2.pub));
+	ASSERT_EQ (200, rep_weights.get (key3.pub));
 	nano::keypair key4;
 	auto block5 = builder
 				  .change ()
@@ -799,10 +805,10 @@ TEST (ledger, representation)
 				  .work (*pool.generate (block4->hash ()))
 				  .build ();
 	ASSERT_EQ (nano::block_status::progress, ledger.process (transaction, block5));
-	ASSERT_EQ (nano::dev::constants.genesis_amount - 200, rep_weights.representation_get (nano::dev::genesis_key.pub));
-	ASSERT_EQ (0, rep_weights.representation_get (key2.pub));
-	ASSERT_EQ (0, rep_weights.representation_get (key3.pub));
-	ASSERT_EQ (200, rep_weights.representation_get (key4.pub));
+	ASSERT_EQ (nano::dev::constants.genesis_amount - 200, rep_weights.get (nano::dev::genesis_key.pub));
+	ASSERT_EQ (0, rep_weights.get (key2.pub));
+	ASSERT_EQ (0, rep_weights.get (key3.pub));
+	ASSERT_EQ (200, rep_weights.get (key4.pub));
 	nano::keypair key5;
 	auto block6 = builder
 				  .send ()
@@ -813,11 +819,11 @@ TEST (ledger, representation)
 				  .work (*pool.generate (block5->hash ()))
 				  .build ();
 	ASSERT_EQ (nano::block_status::progress, ledger.process (transaction, block6));
-	ASSERT_EQ (nano::dev::constants.genesis_amount - 200, rep_weights.representation_get (nano::dev::genesis_key.pub));
-	ASSERT_EQ (0, rep_weights.representation_get (key2.pub));
-	ASSERT_EQ (0, rep_weights.representation_get (key3.pub));
-	ASSERT_EQ (100, rep_weights.representation_get (key4.pub));
-	ASSERT_EQ (0, rep_weights.representation_get (key5.pub));
+	ASSERT_EQ (nano::dev::constants.genesis_amount - 200, rep_weights.get (nano::dev::genesis_key.pub));
+	ASSERT_EQ (0, rep_weights.get (key2.pub));
+	ASSERT_EQ (0, rep_weights.get (key3.pub));
+	ASSERT_EQ (100, rep_weights.get (key4.pub));
+	ASSERT_EQ (0, rep_weights.get (key5.pub));
 	nano::keypair key6;
 	auto block7 = builder
 				  .open ()
@@ -828,12 +834,12 @@ TEST (ledger, representation)
 				  .work (*pool.generate (key5.pub))
 				  .build ();
 	ASSERT_EQ (nano::block_status::progress, ledger.process (transaction, block7));
-	ASSERT_EQ (nano::dev::constants.genesis_amount - 200, rep_weights.representation_get (nano::dev::genesis_key.pub));
-	ASSERT_EQ (0, rep_weights.representation_get (key2.pub));
-	ASSERT_EQ (0, rep_weights.representation_get (key3.pub));
-	ASSERT_EQ (100, rep_weights.representation_get (key4.pub));
-	ASSERT_EQ (0, rep_weights.representation_get (key5.pub));
-	ASSERT_EQ (100, rep_weights.representation_get (key6.pub));
+	ASSERT_EQ (nano::dev::constants.genesis_amount - 200, rep_weights.get (nano::dev::genesis_key.pub));
+	ASSERT_EQ (0, rep_weights.get (key2.pub));
+	ASSERT_EQ (0, rep_weights.get (key3.pub));
+	ASSERT_EQ (100, rep_weights.get (key4.pub));
+	ASSERT_EQ (0, rep_weights.get (key5.pub));
+	ASSERT_EQ (100, rep_weights.get (key6.pub));
 	auto block8 = builder
 				  .send ()
 				  .previous (block6->hash ())
@@ -843,12 +849,12 @@ TEST (ledger, representation)
 				  .work (*pool.generate (block6->hash ()))
 				  .build ();
 	ASSERT_EQ (nano::block_status::progress, ledger.process (transaction, block8));
-	ASSERT_EQ (nano::dev::constants.genesis_amount - 200, rep_weights.representation_get (nano::dev::genesis_key.pub));
-	ASSERT_EQ (0, rep_weights.representation_get (key2.pub));
-	ASSERT_EQ (0, rep_weights.representation_get (key3.pub));
-	ASSERT_EQ (0, rep_weights.representation_get (key4.pub));
-	ASSERT_EQ (0, rep_weights.representation_get (key5.pub));
-	ASSERT_EQ (100, rep_weights.representation_get (key6.pub));
+	ASSERT_EQ (nano::dev::constants.genesis_amount - 200, rep_weights.get (nano::dev::genesis_key.pub));
+	ASSERT_EQ (0, rep_weights.get (key2.pub));
+	ASSERT_EQ (0, rep_weights.get (key3.pub));
+	ASSERT_EQ (0, rep_weights.get (key4.pub));
+	ASSERT_EQ (0, rep_weights.get (key5.pub));
+	ASSERT_EQ (100, rep_weights.get (key6.pub));
 	auto block9 = builder
 				  .receive ()
 				  .previous (block7->hash ())
@@ -857,12 +863,12 @@ TEST (ledger, representation)
 				  .work (*pool.generate (block7->hash ()))
 				  .build ();
 	ASSERT_EQ (nano::block_status::progress, ledger.process (transaction, block9));
-	ASSERT_EQ (nano::dev::constants.genesis_amount - 200, rep_weights.representation_get (nano::dev::genesis_key.pub));
-	ASSERT_EQ (0, rep_weights.representation_get (key2.pub));
-	ASSERT_EQ (0, rep_weights.representation_get (key3.pub));
-	ASSERT_EQ (0, rep_weights.representation_get (key4.pub));
-	ASSERT_EQ (0, rep_weights.representation_get (key5.pub));
-	ASSERT_EQ (200, rep_weights.representation_get (key6.pub));
+	ASSERT_EQ (nano::dev::constants.genesis_amount - 200, rep_weights.get (nano::dev::genesis_key.pub));
+	ASSERT_EQ (0, rep_weights.get (key2.pub));
+	ASSERT_EQ (0, rep_weights.get (key3.pub));
+	ASSERT_EQ (0, rep_weights.get (key4.pub));
+	ASSERT_EQ (0, rep_weights.get (key5.pub));
+	ASSERT_EQ (200, rep_weights.get (key6.pub));
 }
 
 TEST (ledger, double_open)
@@ -4633,8 +4639,8 @@ TEST (ledger, zero_rep)
 				  .build ();
 	auto transaction = node1.ledger.tx_begin_write ();
 	ASSERT_EQ (nano::block_status::progress, node1.ledger.process (transaction, block1));
-	ASSERT_EQ (0, node1.ledger.rep_weights.representation_get (nano::dev::genesis_key.pub));
-	ASSERT_EQ (nano::dev::constants.genesis_amount, node1.ledger.rep_weights.representation_get (0));
+	ASSERT_EQ (0, node1.ledger.rep_weights.get (nano::dev::genesis_key.pub));
+	ASSERT_EQ (nano::dev::constants.genesis_amount, node1.ledger.rep_weights.get (0));
 	auto block2 = builder.state ()
 				  .account (nano::dev::genesis_key.pub)
 				  .previous (block1->hash ())
@@ -4645,8 +4651,8 @@ TEST (ledger, zero_rep)
 				  .work (*system.work.generate (block1->hash ()))
 				  .build ();
 	ASSERT_EQ (nano::block_status::progress, node1.ledger.process (transaction, block2));
-	ASSERT_EQ (nano::dev::constants.genesis_amount, node1.ledger.rep_weights.representation_get (nano::dev::genesis_key.pub));
-	ASSERT_EQ (0, node1.ledger.rep_weights.representation_get (0));
+	ASSERT_EQ (nano::dev::constants.genesis_amount, node1.ledger.rep_weights.get (nano::dev::genesis_key.pub));
+	ASSERT_EQ (0, node1.ledger.rep_weights.get (0));
 }
 
 TEST (ledger, work_validation)
@@ -4899,7 +4905,7 @@ TEST (ledger, cache)
 			ASSERT_EQ (account_count, ledger.account_count ());
 			ASSERT_EQ (block_count, ledger.block_count ());
 			ASSERT_EQ (cemented_count, ledger.cemented_count ());
-			ASSERT_EQ (genesis_weight, ledger.rep_weights.representation_get (nano::dev::genesis_key.pub));
+			ASSERT_EQ (genesis_weight, ledger.rep_weights.get (nano::dev::genesis_key.pub));
 			ASSERT_EQ (pruned_count, ledger.pruned_count ());
 		};
 
