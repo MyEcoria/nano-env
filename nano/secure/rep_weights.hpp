@@ -28,15 +28,20 @@ public:
 
 	/* Only use this method when loading rep weights from the database table */
 	void put (nano::account const & rep, nano::uint128_t const & weight);
+	void put_unused (nano::uint128_t const & weight);
+	void append_from (rep_weights const & other);
 
 	nano::uint128_t get (nano::account const & rep) const;
 	std::unordered_map<nano::account, nano::uint128_t> get_rep_amounts () const;
 
-	/* Only use this method when loading rep weights from the database table */
-	void copy_from (rep_weights const & other);
-
 	size_t size () const;
 	nano::container_info container_info () const;
+	bool empty () const;
+
+	nano::uint128_t get_weight_committed () const;
+	nano::uint128_t get_weight_unused () const;
+
+	void verify_consistency () const;
 
 private:
 	nano::store::rep_weight & rep_weight_store;
@@ -44,6 +49,10 @@ private:
 
 	mutable std::shared_mutex mutex;
 	std::unordered_map<nano::account, nano::uint128_t> rep_amounts;
+
+	// Used for consistency checking, use higher precision types to detect overflows
+	nano::uint256_t weight_committed{ 0 };
+	nano::uint256_t weight_unused{ 0 };
 
 private:
 	void put_cache (nano::account const & rep, nano::uint128_union const & weight);
