@@ -8,6 +8,10 @@
 #include <nano/store/versioning.hpp>
 
 #include <cstddef>
+#include <span>
+
+#include <lmdb/libraries/liblmdb/lmdb.h>
+#include <rocksdb/slice.h>
 
 namespace nano
 {
@@ -22,44 +26,45 @@ class vote;
 namespace nano::store
 {
 /**
- * Encapsulates database specific container
+ * Encapsulates database values using std::span for type safety and backend independence
  */
-template <typename Val>
 class db_val
 {
 public:
-	db_val (Val const & value_a) :
-		value (value_a)
+	db_val () = default;
+
+	db_val (std::span<uint8_t const> span) :
+		span_view (span)
 	{
 	}
 
-	db_val () :
-		db_val (0, nullptr)
+	db_val (size_t size, void const * data) :
+		span_view (static_cast<uint8_t const *> (data), size)
 	{
 	}
 
 	db_val (std::nullptr_t) :
-		db_val (0, this)
+		span_view ()
 	{
 	}
 
 	db_val (nano::uint128_union const & val_a) :
-		db_val (sizeof (val_a), const_cast<nano::uint128_union *> (&val_a))
+		span_view (val_a.bytes.data (), sizeof (val_a))
 	{
 	}
 
 	db_val (nano::uint256_union const & val_a) :
-		db_val (sizeof (val_a), const_cast<nano::uint256_union *> (&val_a))
+		span_view (val_a.bytes.data (), sizeof (val_a))
 	{
 	}
 
 	db_val (nano::uint512_union const & val_a) :
-		db_val (sizeof (val_a), const_cast<nano::uint512_union *> (&val_a))
+		span_view (val_a.bytes.data (), sizeof (val_a))
 	{
 	}
 
 	db_val (nano::qualified_root const & val_a) :
-		db_val (sizeof (val_a), const_cast<nano::qualified_root *> (&val_a))
+		span_view (reinterpret_cast<uint8_t const *> (&val_a), sizeof (val_a))
 	{
 	}
 
@@ -82,13 +87,13 @@ public:
 	}
 
 	db_val (nano::block_info const & val_a) :
-		db_val (sizeof (val_a), const_cast<nano::block_info *> (&val_a))
+		span_view (reinterpret_cast<uint8_t const *> (&val_a), sizeof (val_a))
 	{
 		static_assert (std::is_standard_layout<nano::block_info>::value, "Standard layout is required");
 	}
 
 	db_val (nano::endpoint_key const & val_a) :
-		db_val (sizeof (val_a), const_cast<nano::endpoint_key *> (&val_a))
+		span_view (reinterpret_cast<uint8_t const *> (&val_a), sizeof (val_a))
 	{
 		static_assert (std::is_standard_layout<nano::endpoint_key>::value, "Standard layout is required");
 	}
@@ -114,7 +119,7 @@ public:
 		nano::block_info result;
 		debug_assert (size () == sizeof (result));
 		static_assert (sizeof (nano::block_info::account) + sizeof (nano::block_info::balance) == sizeof (result), "Packed class");
-		std::copy (reinterpret_cast<uint8_t const *> (data ()), reinterpret_cast<uint8_t const *> (data ()) + sizeof (result), reinterpret_cast<uint8_t *> (&result));
+		std::copy (span_view.begin (), span_view.end (), reinterpret_cast<uint8_t *> (&result));
 		return result;
 	}
 
@@ -124,7 +129,7 @@ public:
 
 	explicit operator nano::confirmation_height_info () const
 	{
-		nano::bufferstream stream (reinterpret_cast<uint8_t const *> (data ()), size ());
+		nano::bufferstream stream (span_view.data (), span_view.size ());
 		nano::confirmation_height_info result;
 		bool error (result.deserialize (stream));
 		(void)error;
@@ -169,7 +174,7 @@ public:
 
 	explicit operator std::array<char, 64> () const
 	{
-		nano::bufferstream stream (reinterpret_cast<uint8_t const *> (data ()), size ());
+		nano::bufferstream stream (span_view.data (), span_view.size ());
 		std::array<char, 64> result;
 		auto error = nano::try_read (stream, result);
 		(void)error;
@@ -180,7 +185,8 @@ public:
 	explicit operator nano::endpoint_key () const
 	{
 		nano::endpoint_key result;
-		std::copy (reinterpret_cast<uint8_t const *> (data ()), reinterpret_cast<uint8_t const *> (data ()) + sizeof (result), reinterpret_cast<uint8_t *> (&result));
+		debug_assert (span_view.size () == sizeof (result));
+		std::copy (span_view.begin (), span_view.end (), reinterpret_cast<uint8_t *> (&result));
 		return result;
 	}
 
@@ -199,53 +205,20 @@ public:
 	explicit operator std::shared_ptr<nano::block> () const;
 
 	template <typename Block>
-	std::shared_ptr<Block> convert_to_block () const
-	{
-		nano::bufferstream stream (reinterpret_cast<uint8_t const *> (data ()), size ());
-		auto error (false);
-		auto result (std::make_shared<Block> (error, stream));
-		debug_assert (!error);
-		return result;
-	}
+	std::shared_ptr<Block> convert_to_block () const;
 
-	explicit operator std::shared_ptr<nano::send_block> () const
-	{
-		return convert_to_block<nano::send_block> ();
-	}
+	explicit operator std::shared_ptr<nano::send_block> () const;
+	explicit operator std::shared_ptr<nano::receive_block> () const;
+	explicit operator std::shared_ptr<nano::open_block> () const;
+	explicit operator std::shared_ptr<nano::change_block> () const;
+	explicit operator std::shared_ptr<nano::state_block> () const;
 
-	explicit operator std::shared_ptr<nano::receive_block> () const
-	{
-		return convert_to_block<nano::receive_block> ();
-	}
-
-	explicit operator std::shared_ptr<nano::open_block> () const
-	{
-		return convert_to_block<nano::open_block> ();
-	}
-
-	explicit operator std::shared_ptr<nano::change_block> () const
-	{
-		return convert_to_block<nano::change_block> ();
-	}
-
-	explicit operator std::shared_ptr<nano::state_block> () const
-	{
-		return convert_to_block<nano::state_block> ();
-	}
-
-	explicit operator std::shared_ptr<nano::vote> () const
-	{
-		nano::bufferstream stream (reinterpret_cast<uint8_t const *> (data ()), size ());
-		auto error (false);
-		auto result (nano::make_shared<nano::vote> (error, stream));
-		debug_assert (!error);
-		return result;
-	}
+	explicit operator std::shared_ptr<nano::vote> () const;
 
 	explicit operator uint64_t () const
 	{
 		uint64_t result;
-		nano::bufferstream stream (reinterpret_cast<uint8_t const *> (data ()), size ());
+		nano::bufferstream stream (span_view.data (), span_view.size ());
 		auto error (nano::try_read (stream, result));
 		(void)error;
 		debug_assert (!error);
@@ -253,33 +226,54 @@ public:
 		return result;
 	}
 
-	operator Val * () const
+	void * data () const
 	{
-		// Allow passing a temporary to a non-c++ function which doesn't have constness
-		return const_cast<Val *> (&value);
+		return const_cast<void *> (static_cast<void const *> (span_view.data ()));
 	}
 
-	operator Val const & () const
+	size_t size () const
 	{
-		return value;
+		return span_view.size ();
 	}
 
-	// Must be specialized
-	void * data () const;
-	size_t size () const;
-	db_val (size_t size_a, void * data_a);
-	void convert_buffer_to_value ();
+	// Conversion to MDB_val for LMDB compatibility
+	operator MDB_val () const
+	{
+		return MDB_val{ span_view.size (), const_cast<void *> (static_cast<void const *> (span_view.data ())) };
+	}
 
-	Val value;
+	// Conversion to rocksdb::Slice for RocksDB compatibility
+	operator ::rocksdb::Slice () const
+	{
+		return ::rocksdb::Slice{ reinterpret_cast<char const *> (span_view.data ()), span_view.size () };
+	}
+
+	// Get MDB_val* for LMDB functions that need pointers  
+	MDB_val * mdb_val_ptr () const
+	{
+		cached_mdb_val = MDB_val{ span_view.size (), const_cast<void *> (static_cast<void const *> (span_view.data ())) };
+		return &cached_mdb_val;
+	}
+
+	void convert_buffer_to_value ()
+	{
+		if (buffer)
+		{
+			span_view = std::span<uint8_t const> (buffer->data (), buffer->size ());
+		}
+	}
+
+	std::span<uint8_t const> span_view;
 	std::shared_ptr<std::vector<uint8_t>> buffer;
+	mutable MDB_val cached_mdb_val; // For LMDB compatibility
 
 private:
 	template <typename T>
 	T convert () const
 	{
 		T result;
-		debug_assert (size () == sizeof (result));
-		std::copy (reinterpret_cast<uint8_t const *> (data ()), reinterpret_cast<uint8_t const *> (data ()) + sizeof (result), result.bytes.data ());
+		debug_assert (span_view.size () == sizeof (result));
+		std::copy (span_view.begin (), span_view.end (), result.bytes.data ());
 		return result;
 	}
 };

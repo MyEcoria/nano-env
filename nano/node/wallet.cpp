@@ -279,7 +279,8 @@ nano::wallet_store::wallet_store (bool & init_a, nano::kdf & kdf_a, store::trans
 	if (!init_a)
 	{
 		MDB_val junk;
-		debug_assert (mdb_get (env.tx (transaction_a), handle, nano::store::lmdb::db_val (version_special), &junk) == MDB_NOTFOUND);
+		nano::store::lmdb::db_val version_key (version_special);
+		debug_assert (mdb_get (env.tx (transaction_a), handle, version_key.mdb_val_ptr (), &junk) == MDB_NOTFOUND);
 		boost::property_tree::ptree wallet_l;
 		std::stringstream istream (json_a);
 		try
@@ -312,11 +313,15 @@ nano::wallet_store::wallet_store (bool & init_a, nano::kdf & kdf_a, store::trans
 				init_a = true;
 			}
 		}
-		init_a |= mdb_get (env.tx (transaction_a), handle, nano::store::lmdb::db_val (version_special), &junk) != 0;
-		init_a |= mdb_get (env.tx (transaction_a), handle, nano::store::lmdb::db_val (wallet_key_special), &junk) != 0;
-		init_a |= mdb_get (env.tx (transaction_a), handle, nano::store::lmdb::db_val (salt_special), &junk) != 0;
-		init_a |= mdb_get (env.tx (transaction_a), handle, nano::store::lmdb::db_val (check_special), &junk) != 0;
-		init_a |= mdb_get (env.tx (transaction_a), handle, nano::store::lmdb::db_val (representative_special), &junk) != 0;
+		nano::store::lmdb::db_val wallet_key_key (wallet_key_special);
+		nano::store::lmdb::db_val salt_key (salt_special);
+		nano::store::lmdb::db_val check_key (check_special);
+		init_a |= mdb_get (env.tx (transaction_a), handle, version_key.mdb_val_ptr (), &junk) != 0;
+		init_a |= mdb_get (env.tx (transaction_a), handle, wallet_key_key.mdb_val_ptr (), &junk) != 0;
+		init_a |= mdb_get (env.tx (transaction_a), handle, salt_key.mdb_val_ptr (), &junk) != 0;
+		init_a |= mdb_get (env.tx (transaction_a), handle, check_key.mdb_val_ptr (), &junk) != 0;
+		nano::store::lmdb::db_val rep_key (representative_special);
+		init_a |= mdb_get (env.tx (transaction_a), handle, rep_key.mdb_val_ptr (), &junk) != 0;
 		nano::raw_key key;
 		key.clear ();
 		password.value_set (key);
@@ -337,7 +342,8 @@ nano::wallet_store::wallet_store (bool & init_a, nano::kdf & kdf_a, store::trans
 	{
 		int version_status;
 		MDB_val version_value;
-		version_status = mdb_get (env.tx (transaction_a), handle, nano::store::lmdb::db_val (version_special), &version_value);
+		nano::store::lmdb::db_val version_lookup_key (version_special);
+		version_status = mdb_get (env.tx (transaction_a), handle, version_lookup_key.mdb_val_ptr (), &version_value);
 		if (version_status == MDB_NOTFOUND)
 		{
 			version_put (transaction_a, version_current);
@@ -439,7 +445,8 @@ bool nano::wallet_store::insert_watch (store::transaction const & transaction_a,
 
 void nano::wallet_store::erase (store::transaction const & transaction_a, nano::account const & pub)
 {
-	auto status (mdb_del (env.tx (transaction_a), handle, nano::store::lmdb::db_val (pub), nullptr));
+	nano::store::lmdb::db_val pub_key (pub);
+	auto status (mdb_del (env.tx (transaction_a), handle, pub_key.mdb_val_ptr (), nullptr));
 	(void)status;
 	debug_assert (status == 0);
 }
@@ -448,7 +455,8 @@ nano::wallet_value nano::wallet_store::entry_get_raw (store::transaction const &
 {
 	nano::wallet_value result;
 	nano::store::lmdb::db_val value;
-	auto status (mdb_get (env.tx (transaction_a), handle, nano::store::lmdb::db_val (pub_a), value));
+	nano::store::lmdb::db_val pub_key (pub_a);
+	auto status (mdb_get (env.tx (transaction_a), handle, pub_key.mdb_val_ptr (), value.mdb_val_ptr ()));
 	if (status == 0)
 	{
 		result = nano::wallet_value (value);
@@ -463,7 +471,9 @@ nano::wallet_value nano::wallet_store::entry_get_raw (store::transaction const &
 
 void nano::wallet_store::entry_put_raw (store::transaction const & transaction_a, nano::account const & pub_a, nano::wallet_value const & entry_a)
 {
-	auto status (mdb_put (env.tx (transaction_a), handle, nano::store::lmdb::db_val (pub_a), nano::store::lmdb::db_val (sizeof (entry_a), const_cast<nano::wallet_value *> (&entry_a)), 0));
+	nano::store::lmdb::db_val pub_key (pub_a);
+	nano::store::lmdb::db_val entry_val (sizeof (entry_a), const_cast<nano::wallet_value *> (&entry_a));
+	auto status (mdb_put (env.tx (transaction_a), handle, pub_key.mdb_val_ptr (), entry_val.mdb_val_ptr (), 0));
 	(void)status;
 	debug_assert (status == 0);
 }
@@ -1003,9 +1013,10 @@ std::shared_ptr<nano::block> nano::wallet::send_action (nano::account const & so
 		if (id_mdb_val)
 		{
 			nano::store::lmdb::db_val result;
-			auto status (mdb_get (wallets.env.tx (transaction), wallets.node.wallets.send_action_ids, *id_mdb_val, result));
+			auto status (mdb_get (wallets.env.tx (transaction), wallets.node.wallets.send_action_ids, id_mdb_val->mdb_val_ptr (), result.mdb_val_ptr ()));
 			if (status == 0)
 			{
+				result.span_view = std::span<uint8_t const> (static_cast<uint8_t const *> (result.cached_mdb_val.mv_data), result.cached_mdb_val.mv_size);
 				nano::block_hash hash (result);
 				block = wallets.node.ledger.any.block_get (block_transaction, hash);
 				if (block != nullptr)
@@ -1058,7 +1069,8 @@ std::shared_ptr<nano::block> nano::wallet::send_action (nano::account const & so
 						details.epoch = info->epoch ();
 						if (id_mdb_val && block != nullptr)
 						{
-							auto status (mdb_put (wallets.env.tx (transaction), wallets.node.wallets.send_action_ids, *id_mdb_val, nano::store::lmdb::db_val (block->hash ()), 0));
+							nano::store::lmdb::db_val hash_val (block->hash ());
+							auto status (mdb_put (wallets.env.tx (transaction), wallets.node.wallets.send_action_ids, id_mdb_val->mdb_val_ptr (), hash_val.mdb_val_ptr (), 0));
 							if (status != 0)
 							{
 								block = nullptr;

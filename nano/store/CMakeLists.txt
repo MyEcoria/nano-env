@@ -61,13 +61,11 @@ add_library(
   block.cpp
   component.cpp
   confirmation_height.cpp
-  db_val.cpp
   iterator.cpp
   final_vote.cpp
   lmdb/account.cpp
   lmdb/block.cpp
   lmdb/confirmation_height.cpp
-  lmdb/db_val.cpp
   lmdb/final_vote.cpp
   lmdb/iterator.cpp
   lmdb/lmdb.cpp
@@ -88,7 +86,6 @@ add_library(
   rocksdb/account.cpp
   rocksdb/block.cpp
   rocksdb/confirmation_height.cpp
-  rocksdb/db_val.cpp
   rocksdb/final_vote.cpp
   rocksdb/iterator.cpp
   rocksdb/online_weight.cpp

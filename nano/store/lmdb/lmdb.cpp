@@ -405,17 +405,23 @@ bool nano::store::lmdb::component::exists (store::transaction const & transactio
 
 int nano::store::lmdb::component::get (store::transaction const & transaction_a, tables table_a, nano::store::lmdb::db_val const & key_a, nano::store::lmdb::db_val & value_a) const
 {
-	return mdb_get (env.tx (transaction_a), table_to_dbi (table_a), key_a, value_a);
+	auto result = mdb_get (env.tx (transaction_a), table_to_dbi (table_a), key_a.mdb_val_ptr (), value_a.mdb_val_ptr ());
+	if (result == MDB_SUCCESS)
+	{
+		// Update value_a span_view to point to the retrieved data
+		value_a.span_view = std::span<uint8_t const> (static_cast<uint8_t const *> (value_a.cached_mdb_val.mv_data), value_a.cached_mdb_val.mv_size);
+	}
+	return result;
 }
 
 int nano::store::lmdb::component::put (store::write_transaction const & transaction_a, tables table_a, nano::store::lmdb::db_val const & key_a, nano::store::lmdb::db_val const & value_a) const
 {
-	return (mdb_put (env.tx (transaction_a), table_to_dbi (table_a), key_a, value_a, 0));
+	return (mdb_put (env.tx (transaction_a), table_to_dbi (table_a), key_a.mdb_val_ptr (), value_a.mdb_val_ptr (), 0));
 }
 
 int nano::store::lmdb::component::del (store::write_transaction const & transaction_a, tables table_a, nano::store::lmdb::db_val const & key_a) const
 {
-	return (mdb_del (env.tx (transaction_a), table_to_dbi (table_a), key_a, nullptr));
+	return (mdb_del (env.tx (transaction_a), table_to_dbi (table_a), key_a.mdb_val_ptr (), nullptr));
 }
 
 int nano::store::lmdb::component::drop (store::write_transaction const & transaction_a, tables table_a)
@@ -502,7 +508,8 @@ void nano::store::lmdb::component::rebuild_db (store::write_transaction const & 
 		// Copy all values to temporary table
 		for (typed_iterator<nano::uint256_union, nano::store::lmdb::db_val> i{ store::iterator{ iterator::begin (env.tx (transaction_a), table) } }, n{ store::iterator{ iterator::end (env.tx (transaction_a), table) } }; i != n; ++i)
 		{
-			auto s = mdb_put (env.tx (transaction_a), temp, nano::store::lmdb::db_val (i->first), i->second, MDB_APPEND);
+			nano::store::lmdb::db_val key_val (i->first);
+			auto s = mdb_put (env.tx (transaction_a), temp, key_val.mdb_val_ptr (), i->second.mdb_val_ptr (), MDB_APPEND);
 			release_assert_success (s);
 		}
 		release_assert (count (transaction_a, table) == count (transaction_a, temp));
@@ -511,7 +518,8 @@ void nano::store::lmdb::component::rebuild_db (store::write_transaction const & 
 		// Put values from copy
 		for (typed_iterator<nano::uint256_union, nano::store::lmdb::db_val> i{ store::iterator{ iterator::begin (env.tx (transaction_a), temp) } }, n{ store::iterator{ iterator::end (env.tx (transaction_a), temp) } }; i != n; ++i)
 		{
-			auto s = mdb_put (env.tx (transaction_a), table, nano::store::lmdb::db_val (i->first), i->second, MDB_APPEND);
+			nano::store::lmdb::db_val key_val (i->first);
+			auto s = mdb_put (env.tx (transaction_a), table, key_val.mdb_val_ptr (), i->second.mdb_val_ptr (), MDB_APPEND);
 			release_assert_success (s);
 		}
 		release_assert (count (transaction_a, table) == count (transaction_a, temp));
@@ -525,7 +533,9 @@ void nano::store::lmdb::component::rebuild_db (store::write_transaction const & 
 		// Copy all values to temporary table
 		for (typed_iterator<nano::pending_key, nano::pending_info> i{ store::iterator{ iterator::begin (env.tx (transaction_a), pending_store.pending_handle) } }, n{ store::iterator{ iterator::end (env.tx (transaction_a), pending_store.pending_handle) } }; i != n; ++i)
 		{
-			auto s = mdb_put (env.tx (transaction_a), temp, nano::store::lmdb::db_val (i->first), nano::store::lmdb::db_val (i->second), MDB_APPEND);
+			nano::store::lmdb::db_val key_val (i->first);
+			nano::store::lmdb::db_val value_val (i->second);
+			auto s = mdb_put (env.tx (transaction_a), temp, key_val.mdb_val_ptr (), value_val.mdb_val_ptr (), MDB_APPEND);
 			release_assert_success (s);
 		}
 		release_assert (count (transaction_a, pending_store.pending_handle) == count (transaction_a, temp));
@@ -533,7 +543,9 @@ void nano::store::lmdb::component::rebuild_db (store::write_transaction const & 
 		// Put values from copy
 		for (typed_iterator<nano::pending_key, nano::pending_info> i{ store::iterator{ iterator::begin (env.tx (transaction_a), temp) } }, n{ store::iterator{ iterator::end (env.tx (transaction_a), temp) } }; i != n; ++i)
 		{
-			auto s = mdb_put (env.tx (transaction_a), pending_store.pending_handle, nano::store::lmdb::db_val (i->first), nano::store::lmdb::db_val (i->second), MDB_APPEND);
+			nano::store::lmdb::db_val key_val (i->first);
+			nano::store::lmdb::db_val value_val (i->second);
+			auto s = mdb_put (env.tx (transaction_a), pending_store.pending_handle, key_val.mdb_val_ptr (), value_val.mdb_val_ptr (), MDB_APPEND);
 			release_assert_success (s);
 		}
 		release_assert (count (transaction_a, pending_store.pending_handle) == count (transaction_a, temp));
