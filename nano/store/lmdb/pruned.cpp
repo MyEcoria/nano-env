@@ -1,6 +1,7 @@
 #include <nano/secure/parallel_traversal.hpp>
 #include <nano/store/lmdb/lmdb.hpp>
 #include <nano/store/lmdb/pruned.hpp>
+#include <nano/store/lmdb/utility.hpp>
 
 nano::store::lmdb::pruned::pruned (nano::store::lmdb::component & store_a) :
 	store{ store_a } {};
@@ -47,9 +48,7 @@ void nano::store::lmdb::pruned::clear (store::write_transaction const & transact
 
 auto nano::store::lmdb::pruned::begin (store::transaction const & transaction, nano::block_hash const & hash) const -> iterator
 {
-	lmdb::db_val val{ hash };
-	MDB_val mdb_val{ val.size (), val.data () };
-	return iterator{ store::iterator{ lmdb::iterator::lower_bound (store.env.tx (transaction), pruned_handle, mdb_val) } };
+	return iterator{ store::iterator{ lmdb::iterator::lower_bound (store.env.tx (transaction), pruned_handle, to_mdb_val (hash)) } };
 }
 
 auto nano::store::lmdb::pruned::begin (store::transaction const & transaction) const -> iterator

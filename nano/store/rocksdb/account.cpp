@@ -45,9 +45,7 @@ size_t nano::store::rocksdb::account::count (store::transaction const & transact
 
 auto nano::store::rocksdb::account::begin (store::transaction const & transaction, nano::account const & account) const -> iterator
 {
-	rocksdb::db_val val{ account };
-	::rocksdb::Slice slice{ reinterpret_cast<char const *> (val.data ()), val.size () };
-	return iterator{ store::iterator{ rocksdb::iterator::lower_bound (store.db.get (), rocksdb::tx (transaction), store.table_to_column_family (tables::accounts), slice) } };
+	return iterator{ store::iterator{ rocksdb::iterator::lower_bound (store.db.get (), rocksdb::tx (transaction), store.table_to_column_family (tables::accounts), to_slice (account)) } };
 }
 
 auto nano::store::rocksdb::account::begin (store::transaction const & transaction) const -> iterator

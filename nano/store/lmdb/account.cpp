@@ -2,6 +2,7 @@
 #include <nano/store/lmdb/account.hpp>
 #include <nano/store/lmdb/db_val.hpp>
 #include <nano/store/lmdb/lmdb.hpp>
+#include <nano/store/lmdb/utility.hpp>
 
 nano::store::lmdb::account::account (nano::store::lmdb::component & store_a) :
 	store (store_a){};
@@ -45,9 +46,7 @@ size_t nano::store::lmdb::account::count (store::transaction const & transaction
 
 auto nano::store::lmdb::account::begin (store::transaction const & transaction, nano::account const & account) const -> iterator
 {
-	lmdb::db_val val{ account };
-	MDB_val mdb_val{ val.size (), val.data () };
-	return iterator{ store::iterator{ lmdb::iterator::lower_bound (store.env.tx (transaction), accounts_handle, mdb_val) } };
+	return iterator{ store::iterator{ lmdb::iterator::lower_bound (store.env.tx (transaction), accounts_handle, to_mdb_val (account)) } };
 }
 
 auto nano::store::lmdb::account::begin (store::transaction const & transaction) const -> iterator

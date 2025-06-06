@@ -130,9 +130,7 @@ auto nano::store::rocksdb::block::begin (store::transaction const & transaction)
 
 auto nano::store::rocksdb::block::begin (store::transaction const & transaction, nano::block_hash const & hash) const -> iterator
 {
-	rocksdb::db_val val{ hash };
-	::rocksdb::Slice slice{ reinterpret_cast<char const *> (val.data ()), val.size () };
-	return iterator{ store::iterator{ rocksdb::iterator::lower_bound (store.db.get (), rocksdb::tx (transaction), store.table_to_column_family (tables::blocks), slice) } };
+	return iterator{ store::iterator{ rocksdb::iterator::lower_bound (store.db.get (), rocksdb::tx (transaction), store.table_to_column_family (tables::blocks), to_slice (hash)) } };
 }
 
 auto nano::store::rocksdb::block::end (store::transaction const & transaction_a) const -> iterator

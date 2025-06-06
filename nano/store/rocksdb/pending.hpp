@@ -4,6 +4,10 @@
 
 namespace nano::store::rocksdb
 {
+class component;
+}
+namespace nano::store::rocksdb
+{
 class pending : public nano::store::pending
 {
 private:

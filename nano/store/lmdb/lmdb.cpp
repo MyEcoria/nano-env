@@ -5,6 +5,7 @@
 #include <nano/secure/parallel_traversal.hpp>
 #include <nano/store/lmdb/iterator.hpp>
 #include <nano/store/lmdb/lmdb.hpp>
+#include <nano/store/lmdb/utility.hpp>
 #include <nano/store/lmdb/wallet_value.hpp>
 #include <nano/store/typed_iterator_templ.hpp>
 #include <nano/store/version.hpp>
@@ -405,28 +406,27 @@ bool nano::store::lmdb::component::exists (store::transaction const & transactio
 
 int nano::store::lmdb::component::get (store::transaction const & transaction_a, tables table_a, nano::store::lmdb::db_val const & key_a, nano::store::lmdb::db_val & value_a) const
 {
-	MDB_val mdb_key{ key_a.size (), key_a.data () };
+	auto mdb_key = to_mdb_val (key_a);
 	MDB_val mdb_value{};
-	
+
 	auto result = mdb_get (env.tx (transaction_a), table_to_dbi (table_a), &mdb_key, &mdb_value);
 	if (result == MDB_SUCCESS)
 	{
-		// Update value_a span_view to point to the retrieved data
-		value_a.span_view = std::span<uint8_t const> (static_cast<uint8_t const *> (mdb_value.mv_data), mdb_value.mv_size);
+		value_a = from_mdb_val (mdb_value);
 	}
 	return result;
 }
 
 int nano::store::lmdb::component::put (store::write_transaction const & transaction_a, tables table_a, nano::store::lmdb::db_val const & key_a, nano::store::lmdb::db_val const & value_a) const
 {
-	MDB_val mdb_key{ key_a.size (), key_a.data () };
-	MDB_val mdb_value{ value_a.size (), value_a.data () };
+	auto mdb_key = to_mdb_val (key_a);
+	auto mdb_value = to_mdb_val (value_a);
 	return (mdb_put (env.tx (transaction_a), table_to_dbi (table_a), &mdb_key, &mdb_value, 0));
 }
 
 int nano::store::lmdb::component::del (store::write_transaction const & transaction_a, tables table_a, nano::store::lmdb::db_val const & key_a) const
 {
-	MDB_val mdb_key{ key_a.size (), key_a.data () };
+	auto mdb_key = to_mdb_val (key_a);
 	return (mdb_del (env.tx (transaction_a), table_to_dbi (table_a), &mdb_key, nullptr));
 }
 
@@ -515,8 +515,8 @@ void nano::store::lmdb::component::rebuild_db (store::write_transaction const & 
 		for (typed_iterator<nano::uint256_union, nano::store::lmdb::db_val> i{ store::iterator{ iterator::begin (env.tx (transaction_a), table) } }, n{ store::iterator{ iterator::end (env.tx (transaction_a), table) } }; i != n; ++i)
 		{
 			nano::store::lmdb::db_val key_val (i->first);
-			MDB_val mdb_key{ key_val.size (), key_val.data () };
-			MDB_val mdb_value{ i->second.size (), i->second.data () };
+			auto mdb_key = to_mdb_val (key_val);
+			auto mdb_value = to_mdb_val (i->second);
 			auto s = mdb_put (env.tx (transaction_a), temp, &mdb_key, &mdb_value, MDB_APPEND);
 			release_assert_success (s);
 		}
@@ -527,8 +527,8 @@ void nano::store::lmdb::component::rebuild_db (store::write_transaction const & 
 		for (typed_iterator<nano::uint256_union, nano::store::lmdb::db_val> i{ store::iterator{ iterator::begin (env.tx (transaction_a), temp) } }, n{ store::iterator{ iterator::end (env.tx (transaction_a), temp) } }; i != n; ++i)
 		{
 			nano::store::lmdb::db_val key_val (i->first);
-			MDB_val mdb_key{ key_val.size (), key_val.data () };
-			MDB_val mdb_value{ i->second.size (), i->second.data () };
+			auto mdb_key = to_mdb_val (key_val);
+			auto mdb_value = to_mdb_val (i->second);
 			auto s = mdb_put (env.tx (transaction_a), table, &mdb_key, &mdb_value, MDB_APPEND);
 			release_assert_success (s);
 		}
@@ -545,8 +545,8 @@ void nano::store::lmdb::component::rebuild_db (store::write_transaction const & 
 		{
 			nano::store::lmdb::db_val key_val (i->first);
 			nano::store::lmdb::db_val value_val (i->second);
-			MDB_val mdb_key{ key_val.size (), key_val.data () };
-			MDB_val mdb_value{ value_val.size (), value_val.data () };
+			auto mdb_key = to_mdb_val (key_val);
+			auto mdb_value = to_mdb_val (value_val);
 			auto s = mdb_put (env.tx (transaction_a), temp, &mdb_key, &mdb_value, MDB_APPEND);
 			release_assert_success (s);
 		}
@@ -557,8 +557,8 @@ void nano::store::lmdb::component::rebuild_db (store::write_transaction const & 
 		{
 			nano::store::lmdb::db_val key_val (i->first);
 			nano::store::lmdb::db_val value_val (i->second);
-			MDB_val mdb_key{ key_val.size (), key_val.data () };
-			MDB_val mdb_value{ value_val.size (), value_val.data () };
+			auto mdb_key = to_mdb_val (key_val);
+			auto mdb_value = to_mdb_val (value_val);
 			auto s = mdb_put (env.tx (transaction_a), pending_store.pending_handle, &mdb_key, &mdb_value, MDB_APPEND);
 			release_assert_success (s);
 		}

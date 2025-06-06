@@ -42,6 +42,12 @@ public:
 	{
 	}
 
+	db_val (std::shared_ptr<std::vector<uint8_t>> buffer_a) :
+		buffer (buffer_a)
+	{
+		convert_buffer_to_value ();
+	}
+
 	db_val (nano::uint128_union const & val_a) :
 		span_view (val_a.bytes.data (), sizeof (val_a))
 	{

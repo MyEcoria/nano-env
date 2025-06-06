@@ -533,7 +533,7 @@ rocksdb::ColumnFamilyHandle * nano::store::rocksdb::component::table_to_column_f
 bool nano::store::rocksdb::component::exists (store::transaction const & transaction_a, tables table_a, nano::store::rocksdb::db_val const & key_a) const
 {
 	::rocksdb::PinnableSlice slice;
-	::rocksdb::Slice key_slice{ reinterpret_cast<char const *> (key_a.data ()), key_a.size () };
+	auto key_slice = to_slice (key_a);
 	auto internals = rocksdb::tx (transaction_a);
 	auto status = std::visit ([&] (auto && ptr) {
 		using V = std::remove_cvref_t<decltype (ptr)>;
@@ -563,7 +563,7 @@ int nano::store::rocksdb::component::del (store::write_transaction const & trans
 	// RocksDB does not report not_found status, it is a pre-condition that the key exists
 	debug_assert (exists (transaction_a, table_a, key_a));
 	flush_tombstones_check (table_a);
-	::rocksdb::Slice key_slice{ reinterpret_cast<char const *> (key_a.data ()), key_a.size () };
+	auto key_slice = to_slice (key_a);
 	return std::get<::rocksdb::Transaction *> (rocksdb::tx (transaction_a))->Delete (table_to_column_family (table_a), key_slice).code ();
 }
 
@@ -591,7 +591,7 @@ int nano::store::rocksdb::component::get (store::transaction const & transaction
 {
 	::rocksdb::ReadOptions options;
 	::rocksdb::PinnableSlice slice;
-	::rocksdb::Slice key_slice{ reinterpret_cast<char const *> (key_a.data ()), key_a.size () };
+	auto key_slice = to_slice (key_a);
 	auto handle = table_to_column_family (table_a);
 	auto internals = rocksdb::tx (transaction_a);
 	auto status = std::visit ([&] (auto && ptr) {
@@ -613,9 +613,7 @@ int nano::store::rocksdb::component::get (store::transaction const & transaction
 
 	if (status.ok ())
 	{
-		value_a.buffer = std::make_shared<std::vector<uint8_t>> (slice.size ());
-		std::memcpy (value_a.buffer->data (), slice.data (), slice.size ());
-		value_a.convert_buffer_to_value ();
+		value_a = from_slice (slice);
 	}
 	return status.code ();
 }
@@ -623,8 +621,8 @@ int nano::store::rocksdb::component::get (store::transaction const & transaction
 int nano::store::rocksdb::component::put (store::write_transaction const & transaction_a, tables table_a, nano::store::rocksdb::db_val const & key_a, nano::store::rocksdb::db_val const & value_a)
 {
 	debug_assert (transaction_a.contains (table_a));
-	::rocksdb::Slice key_slice{ reinterpret_cast<char const *> (key_a.data ()), key_a.size () };
-	::rocksdb::Slice value_slice{ reinterpret_cast<char const *> (value_a.data ()), value_a.size () };
+	auto key_slice = to_slice (key_a);
+	auto value_slice = to_slice (value_a);
 	return std::get<::rocksdb::Transaction *> (rocksdb::tx (transaction_a))->Put (table_to_column_family (table_a), key_slice, value_slice).code ();
 }
 

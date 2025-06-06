@@ -1,6 +1,7 @@
 #include <nano/secure/parallel_traversal.hpp>
 #include <nano/store/lmdb/lmdb.hpp>
 #include <nano/store/lmdb/pending.hpp>
+#include <nano/store/lmdb/utility.hpp>
 
 nano::store::lmdb::pending::pending (nano::store::lmdb::component & store) :
 	store{ store } {};
@@ -47,9 +48,7 @@ bool nano::store::lmdb::pending::any (store::transaction const & transaction_a, 
 
 auto nano::store::lmdb::pending::begin (store::transaction const & transaction_a, nano::pending_key const & key_a) const -> iterator
 {
-	lmdb::db_val val{ key_a };
-	MDB_val mdb_val{ val.size (), val.data () };
-	return iterator{ store::iterator{ lmdb::iterator::lower_bound (store.env.tx (transaction_a), pending_handle, mdb_val) } };
+	return iterator{ store::iterator{ lmdb::iterator::lower_bound (store.env.tx (transaction_a), pending_handle, to_mdb_val (key_a)) } };
 }
 
 auto nano::store::lmdb::pending::begin (store::transaction const & transaction_a) const -> iterator

@@ -1,6 +1,7 @@
 #include <nano/secure/parallel_traversal.hpp>
 #include <nano/store/lmdb/confirmation_height.hpp>
 #include <nano/store/lmdb/lmdb.hpp>
+#include <nano/store/lmdb/utility.hpp>
 
 nano::store::lmdb::confirmation_height::confirmation_height (nano::store::lmdb::component & store) :
 	store{ store }
@@ -61,9 +62,7 @@ void nano::store::lmdb::confirmation_height::clear (store::write_transaction con
 
 auto nano::store::lmdb::confirmation_height::begin (store::transaction const & transaction, nano::account const & account) const -> iterator
 {
-	lmdb::db_val val{ account };
-	MDB_val mdb_val{ val.size (), val.data () };
-	return iterator{ store::iterator{ lmdb::iterator::lower_bound (store.env.tx (transaction), confirmation_height_handle, mdb_val) } };
+	return iterator{ store::iterator{ lmdb::iterator::lower_bound (store.env.tx (transaction), confirmation_height_handle, to_mdb_val (account)) } };
 }
 
 auto nano::store::lmdb::confirmation_height::begin (store::transaction const & transaction) const -> iterator

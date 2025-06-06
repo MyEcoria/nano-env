@@ -2,6 +2,7 @@
 #include <nano/secure/parallel_traversal.hpp>
 #include <nano/store/lmdb/lmdb.hpp>
 #include <nano/store/lmdb/rep_weight.hpp>
+#include <nano/store/lmdb/utility.hpp>
 
 #include <iostream>
 #include <stdexcept>
@@ -45,9 +46,7 @@ void nano::store::lmdb::rep_weight::del (store::write_transaction const & txn_a,
 
 auto nano::store::lmdb::rep_weight::begin (store::transaction const & transaction_a, nano::account const & representative_a) const -> iterator
 {
-	lmdb::db_val val{ representative_a };
-	MDB_val mdb_val{ val.size (), val.data () };
-	return iterator{ store::iterator{ lmdb::iterator::lower_bound (store.env.tx (transaction_a), rep_weights_handle, mdb_val) } };
+	return iterator{ store::iterator{ lmdb::iterator::lower_bound (store.env.tx (transaction_a), rep_weights_handle, to_mdb_val (representative_a)) } };
 }
 
 auto nano::store::lmdb::rep_weight::begin (store::transaction const & transaction_a) const -> iterator
