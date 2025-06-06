@@ -46,7 +46,8 @@ void nano::store::lmdb::rep_weight::del (store::write_transaction const & txn_a,
 auto nano::store::lmdb::rep_weight::begin (store::transaction const & transaction_a, nano::account const & representative_a) const -> iterator
 {
 	lmdb::db_val val{ representative_a };
-	return iterator{ store::iterator{ lmdb::iterator::lower_bound (store.env.tx (transaction_a), rep_weights_handle, val) } };
+	MDB_val mdb_val{ val.size (), val.data () };
+	return iterator{ store::iterator{ lmdb::iterator::lower_bound (store.env.tx (transaction_a), rep_weights_handle, mdb_val) } };
 }
 
 auto nano::store::lmdb::rep_weight::begin (store::transaction const & transaction_a) const -> iterator

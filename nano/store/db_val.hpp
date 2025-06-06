@@ -3,15 +3,9 @@
 #include <nano/lib/numbers.hpp>
 #include <nano/lib/stream.hpp>
 #include <nano/secure/common.hpp>
-#include <nano/store/block.hpp>
-#include <nano/store/component.hpp>
-#include <nano/store/versioning.hpp>
 
 #include <cstddef>
 #include <span>
-
-#include <lmdb/libraries/liblmdb/lmdb.h>
-#include <rocksdb/slice.h>
 
 namespace nano
 {
@@ -236,25 +230,6 @@ public:
 		return span_view.size ();
 	}
 
-	// Conversion to MDB_val for LMDB compatibility
-	operator MDB_val () const
-	{
-		return MDB_val{ span_view.size (), const_cast<void *> (static_cast<void const *> (span_view.data ())) };
-	}
-
-	// Conversion to rocksdb::Slice for RocksDB compatibility
-	operator ::rocksdb::Slice () const
-	{
-		return ::rocksdb::Slice{ reinterpret_cast<char const *> (span_view.data ()), span_view.size () };
-	}
-
-	// Get MDB_val* for LMDB functions that need pointers  
-	MDB_val * mdb_val_ptr () const
-	{
-		cached_mdb_val = MDB_val{ span_view.size (), const_cast<void *> (static_cast<void const *> (span_view.data ())) };
-		return &cached_mdb_val;
-	}
-
 	void convert_buffer_to_value ()
 	{
 		if (buffer)
@@ -265,7 +240,6 @@ public:
 
 	std::span<uint8_t const> span_view;
 	std::shared_ptr<std::vector<uint8_t>> buffer;
-	mutable MDB_val cached_mdb_val; // For LMDB compatibility
 
 private:
 	template <typename T>
@@ -277,4 +251,4 @@ private:
 		return result;
 	}
 };
-} // namespace nano::store
+}

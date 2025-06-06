@@ -130,7 +130,8 @@ auto nano::store::lmdb::block::begin (store::transaction const & transaction) co
 auto nano::store::lmdb::block::begin (store::transaction const & transaction, nano::block_hash const & hash) const -> iterator
 {
 	lmdb::db_val val{ hash };
-	return iterator{ store::iterator{ lmdb::iterator::lower_bound (store.env.tx (transaction), blocks_handle, val) } };
+	MDB_val mdb_val{ val.size (), val.data () };
+	return iterator{ store::iterator{ lmdb::iterator::lower_bound (store.env.tx (transaction), blocks_handle, mdb_val) } };
 }
 
 auto nano::store::lmdb::block::end (store::transaction const & transaction_a) const -> iterator

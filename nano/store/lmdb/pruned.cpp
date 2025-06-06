@@ -48,7 +48,8 @@ void nano::store::lmdb::pruned::clear (store::write_transaction const & transact
 auto nano::store::lmdb::pruned::begin (store::transaction const & transaction, nano::block_hash const & hash) const -> iterator
 {
 	lmdb::db_val val{ hash };
-	return iterator{ store::iterator{ lmdb::iterator::lower_bound (store.env.tx (transaction), pruned_handle, val) } };
+	MDB_val mdb_val{ val.size (), val.data () };
+	return iterator{ store::iterator{ lmdb::iterator::lower_bound (store.env.tx (transaction), pruned_handle, mdb_val) } };
 }
 
 auto nano::store::lmdb::pruned::begin (store::transaction const & transaction) const -> iterator

@@ -48,7 +48,8 @@ bool nano::store::lmdb::pending::any (store::transaction const & transaction_a, 
 auto nano::store::lmdb::pending::begin (store::transaction const & transaction_a, nano::pending_key const & key_a) const -> iterator
 {
 	lmdb::db_val val{ key_a };
-	return iterator{ store::iterator{ lmdb::iterator::lower_bound (store.env.tx (transaction_a), pending_handle, val) } };
+	MDB_val mdb_val{ val.size (), val.data () };
+	return iterator{ store::iterator{ lmdb::iterator::lower_bound (store.env.tx (transaction_a), pending_handle, mdb_val) } };
 }
 
 auto nano::store::lmdb::pending::begin (store::transaction const & transaction_a) const -> iterator

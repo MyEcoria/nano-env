@@ -54,7 +54,8 @@ void nano::store::lmdb::final_vote::clear (store::write_transaction const & tran
 auto nano::store::lmdb::final_vote::begin (store::transaction const & transaction, nano::qualified_root const & root) const -> iterator
 {
 	lmdb::db_val val{ root };
-	return iterator{ store::iterator{ lmdb::iterator::lower_bound (store.env.tx (transaction), final_votes_handle, val) } };
+	MDB_val mdb_val{ val.size (), val.data () };
+	return iterator{ store::iterator{ lmdb::iterator::lower_bound (store.env.tx (transaction), final_votes_handle, mdb_val) } };
 }
 
 auto nano::store::lmdb::final_vote::begin (store::transaction const & transaction) const -> iterator

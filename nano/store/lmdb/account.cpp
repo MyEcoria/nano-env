@@ -46,7 +46,8 @@ size_t nano::store::lmdb::account::count (store::transaction const & transaction
 auto nano::store::lmdb::account::begin (store::transaction const & transaction, nano::account const & account) const -> iterator
 {
 	lmdb::db_val val{ account };
-	return iterator{ store::iterator{ lmdb::iterator::lower_bound (store.env.tx (transaction), accounts_handle, val) } };
+	MDB_val mdb_val{ val.size (), val.data () };
+	return iterator{ store::iterator{ lmdb::iterator::lower_bound (store.env.tx (transaction), accounts_handle, mdb_val) } };
 }
 
 auto nano::store::lmdb::account::begin (store::transaction const & transaction) const -> iterator

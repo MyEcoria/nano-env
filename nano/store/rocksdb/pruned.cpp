@@ -49,7 +49,8 @@ void nano::store::rocksdb::pruned::clear (store::write_transaction const & trans
 auto nano::store::rocksdb::pruned::begin (store::transaction const & transaction_a, nano::block_hash const & hash_a) const -> iterator
 {
 	rocksdb::db_val val{ hash_a };
-	return iterator{ store::iterator{ rocksdb::iterator::lower_bound (store.db.get (), rocksdb::tx (transaction_a), store.table_to_column_family (tables::pruned), val) } };
+	::rocksdb::Slice slice{ reinterpret_cast<char const *> (val.data ()), val.size () };
+	return iterator{ store::iterator{ rocksdb::iterator::lower_bound (store.db.get (), rocksdb::tx (transaction_a), store.table_to_column_family (tables::pruned), slice) } };
 }
 
 auto nano::store::rocksdb::pruned::begin (store::transaction const & transaction_a) const -> iterator

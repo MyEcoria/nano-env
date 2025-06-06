@@ -62,7 +62,8 @@ void nano::store::lmdb::confirmation_height::clear (store::write_transaction con
 auto nano::store::lmdb::confirmation_height::begin (store::transaction const & transaction, nano::account const & account) const -> iterator
 {
 	lmdb::db_val val{ account };
-	return iterator{ store::iterator{ lmdb::iterator::lower_bound (store.env.tx (transaction), confirmation_height_handle, val) } };
+	MDB_val mdb_val{ val.size (), val.data () };
+	return iterator{ store::iterator{ lmdb::iterator::lower_bound (store.env.tx (transaction), confirmation_height_handle, mdb_val) } };
 }
 
 auto nano::store::lmdb::confirmation_height::begin (store::transaction const & transaction) const -> iterator

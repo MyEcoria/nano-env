@@ -1,6 +1,7 @@
 #include <nano/secure/ledger.hpp>
 #include <nano/secure/ledger_set_any.hpp>
 #include <nano/store/account.hpp>
+#include <nano/store/block.hpp>
 #include <nano/store/component.hpp>
 #include <nano/store/pending.hpp>
 #include <nano/store/pruned.hpp>

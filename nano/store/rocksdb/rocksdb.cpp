@@ -533,6 +533,7 @@ rocksdb::ColumnFamilyHandle * nano::store::rocksdb::component::table_to_column_f
 bool nano::store::rocksdb::component::exists (store::transaction const & transaction_a, tables table_a, nano::store::rocksdb::db_val const & key_a) const
 {
 	::rocksdb::PinnableSlice slice;
+	::rocksdb::Slice key_slice{ reinterpret_cast<char const *> (key_a.data ()), key_a.size () };
 	auto internals = rocksdb::tx (transaction_a);
 	auto status = std::visit ([&] (auto && ptr) {
 		using V = std::remove_cvref_t<decltype (ptr)>;
@@ -540,11 +541,11 @@ bool nano::store::rocksdb::component::exists (store::transaction const & transac
 		{
 			::rocksdb::ReadOptions options;
 			options.fill_cache = false;
-			return ptr->Get (options, table_to_column_family (table_a), key_a, &slice);
+			return ptr->Get (options, table_to_column_family (table_a), key_slice, &slice);
 		}
 		else if constexpr (std::is_same_v<V, ::rocksdb::ReadOptions *>)
 		{
-			return db->Get (*ptr, table_to_column_family (table_a), key_a, &slice);
+			return db->Get (*ptr, table_to_column_family (table_a), key_slice, &slice);
 		}
 		else
 		{
@@ -562,7 +563,8 @@ int nano::store::rocksdb::component::del (store::write_transaction const & trans
 	// RocksDB does not report not_found status, it is a pre-condition that the key exists
 	debug_assert (exists (transaction_a, table_a, key_a));
 	flush_tombstones_check (table_a);
-	return std::get<::rocksdb::Transaction *> (rocksdb::tx (transaction_a))->Delete (table_to_column_family (table_a), key_a).code ();
+	::rocksdb::Slice key_slice{ reinterpret_cast<char const *> (key_a.data ()), key_a.size () };
+	return std::get<::rocksdb::Transaction *> (rocksdb::tx (transaction_a))->Delete (table_to_column_family (table_a), key_slice).code ();
 }
 
 void nano::store::rocksdb::component::flush_tombstones_check (tables table_a)
@@ -589,17 +591,18 @@ int nano::store::rocksdb::component::get (store::transaction const & transaction
 {
 	::rocksdb::ReadOptions options;
 	::rocksdb::PinnableSlice slice;
+	::rocksdb::Slice key_slice{ reinterpret_cast<char const *> (key_a.data ()), key_a.size () };
 	auto handle = table_to_column_family (table_a);
 	auto internals = rocksdb::tx (transaction_a);
 	auto status = std::visit ([&] (auto && ptr) {
 		using V = std::remove_cvref_t<decltype (ptr)>;
 		if constexpr (std::is_same_v<V, ::rocksdb::Transaction *>)
 		{
-			return ptr->Get (options, handle, key_a, &slice);
+			return ptr->Get (options, handle, key_slice, &slice);
 		}
 		else if constexpr (std::is_same_v<V, ::rocksdb::ReadOptions *>)
 		{
-			return db->Get (*ptr, handle, key_a, &slice);
+			return db->Get (*ptr, handle, key_slice, &slice);
 		}
 		else
 		{
@@ -620,7 +623,9 @@ int nano::store::rocksdb::component::get (store::transaction const & transaction
 int nano::store::rocksdb::component::put (store::write_transaction const & transaction_a, tables table_a, nano::store::rocksdb::db_val const & key_a, nano::store::rocksdb::db_val const & value_a)
 {
 	debug_assert (transaction_a.contains (table_a));
-	return std::get<::rocksdb::Transaction *> (rocksdb::tx (transaction_a))->Put (table_to_column_family (table_a), key_a, value_a).code ();
+	::rocksdb::Slice key_slice{ reinterpret_cast<char const *> (key_a.data ()), key_a.size () };
+	::rocksdb::Slice value_slice{ reinterpret_cast<char const *> (value_a.data ()), value_a.size () };
+	return std::get<::rocksdb::Transaction *> (rocksdb::tx (transaction_a))->Put (table_to_column_family (table_a), key_slice, value_slice).code ();
 }
 
 bool nano::store::rocksdb::component::not_found (int status) const

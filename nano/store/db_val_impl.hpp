@@ -1,6 +1,7 @@
 #pragma once
 
 #include <nano/lib/blocks.hpp>
+#include <nano/lib/memory.hpp>
 #include <nano/secure/account_info.hpp>
 #include <nano/secure/pending_info.hpp>
 #include <nano/secure/vote.hpp>

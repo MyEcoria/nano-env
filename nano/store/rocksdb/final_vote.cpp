@@ -55,7 +55,8 @@ void nano::store::rocksdb::final_vote::clear (store::write_transaction const & t
 auto nano::store::rocksdb::final_vote::begin (store::transaction const & transaction, nano::qualified_root const & root) const -> iterator
 {
 	rocksdb::db_val val{ root };
-	return iterator{ store::iterator{ rocksdb::iterator::lower_bound (store.db.get (), rocksdb::tx (transaction), store.table_to_column_family (tables::final_votes), val) } };
+	::rocksdb::Slice slice{ reinterpret_cast<char const *> (val.data ()), val.size () };
+	return iterator{ store::iterator{ rocksdb::iterator::lower_bound (store.db.get (), rocksdb::tx (transaction), store.table_to_column_family (tables::final_votes), slice) } };
 }
 
 auto nano::store::rocksdb::final_vote::begin (store::transaction const & transaction) const -> iterator
