@@ -1,5 +1,5 @@
 #include <nano/secure/parallel_traversal.hpp>
-#include <nano/store/db_val_impl.hpp>
+#include <nano/store/db_val_templ.hpp>
 #include <nano/store/rocksdb/block.hpp>
 #include <nano/store/rocksdb/rocksdb.hpp>
 #include <nano/store/rocksdb/utility.hpp>

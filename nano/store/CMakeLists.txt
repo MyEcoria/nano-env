@@ -6,7 +6,7 @@ add_library(
   component.hpp
   confirmation_height.hpp
   db_val.hpp
-  db_val_impl.hpp
+  db_val_templ.hpp
   iterator.hpp
   final_vote.hpp
   fwd.hpp
