@@ -22,33 +22,33 @@ namespace nano::store
 /**
  * Encapsulates database values using std::span for type safety and backend independence
  */
-class db_val
+class db_val final
 {
 public:
 	db_val () = default;
 
-	db_val (std::span<uint8_t const> span) :
-		span_view (span)
+	db_val (std::span<uint8_t const> span) noexcept :
+		span_view{ span }
 	{
 	}
 
-	db_val (size_t size, void const * data) :
-		span_view (static_cast<uint8_t const *> (data), size)
+	db_val (size_t size, void const * data) noexcept :
+		span_view{ static_cast<uint8_t const *> (data), size }
 	{
 	}
 
-	db_val (std::nullptr_t) :
-		span_view ()
+	db_val (std::nullptr_t) noexcept :
+		span_view{}
 	{
 	}
 
-	db_val (std::shared_ptr<std::vector<uint8_t>> buffer_a) :
-		buffer (buffer_a)
+	db_val (std::shared_ptr<std::vector<uint8_t>> buffer) noexcept :
+		buffer{ buffer }
 	{
 		convert_buffer_to_value ();
 	}
 
-	db_val (uint64_t);
+	db_val (uint64_t value);
 	db_val (nano::uint128_union const &);
 	db_val (nano::uint256_union const &);
 	db_val (nano::uint512_union const &);
@@ -85,7 +85,7 @@ public:
 	explicit operator nano::no_value () const;
 
 	template <typename Block>
-	std::shared_ptr<Block> convert_to_block () const;
+	auto convert_to_block () const -> std::shared_ptr<Block>;
 
 	explicit operator std::shared_ptr<nano::send_block> () const;
 	explicit operator std::shared_ptr<nano::receive_block> () const;
@@ -93,22 +93,22 @@ public:
 	explicit operator std::shared_ptr<nano::change_block> () const;
 	explicit operator std::shared_ptr<nano::state_block> () const;
 
-	void * data () const
+	auto data () const noexcept -> void *
 	{
 		return const_cast<void *> (static_cast<void const *> (span_view.data ()));
 	}
-	size_t size () const
+	auto size () const noexcept -> size_t
 	{
 		return span_view.size ();
 	}
 
-	void convert_buffer_to_value ();
+	auto convert_buffer_to_value () noexcept -> void;
 
 	std::span<uint8_t const> span_view;
 	std::shared_ptr<std::vector<uint8_t>> buffer;
 
 private:
 	template <typename T>
-	T convert () const;
+	auto convert () const -> T;
 };
 }

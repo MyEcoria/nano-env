@@ -10,104 +10,100 @@
 
 namespace nano::store
 {
-/*
- * Constructors
- */
+// Constructor implementations
 
-inline db_val::db_val (uint64_t val_a) :
-	buffer (std::make_shared<std::vector<uint8_t>> ())
+inline db_val::db_val (uint64_t value) :
+	buffer{ std::make_shared<std::vector<uint8_t>> () }
 {
 	{
-		boost::endian::native_to_big_inplace (val_a);
-		nano::vectorstream stream (*buffer);
-		nano::write (stream, val_a);
+		boost::endian::native_to_big_inplace (value);
+		nano::vectorstream stream{ *buffer };
+		nano::write (stream, value);
 	}
 	convert_buffer_to_value ();
 }
 
-inline db_val::db_val (nano::uint128_union const & val_a) :
-	span_view (val_a.bytes.data (), sizeof (val_a))
+inline db_val::db_val (nano::uint128_union const & value) :
+	span_view{ value.bytes.data (), sizeof (value) }
 {
 }
 
-inline db_val::db_val (nano::uint256_union const & val_a) :
-	span_view (val_a.bytes.data (), sizeof (val_a))
+inline db_val::db_val (nano::uint256_union const & value) :
+	span_view{ value.bytes.data (), sizeof (value) }
 {
 }
 
-inline db_val::db_val (nano::uint512_union const & val_a) :
-	span_view (val_a.bytes.data (), sizeof (val_a))
+inline db_val::db_val (nano::uint512_union const & value) :
+	span_view{ value.bytes.data (), sizeof (value) }
 {
 }
 
-inline db_val::db_val (nano::qualified_root const & val_a) :
-	span_view (reinterpret_cast<uint8_t const *> (&val_a), sizeof (val_a))
+inline db_val::db_val (nano::qualified_root const & value) :
+	span_view{ reinterpret_cast<uint8_t const *> (&value), sizeof (value) }
 {
 }
 
-inline db_val::db_val (nano::account_info const & val_a) :
-	span_view (reinterpret_cast<uint8_t const *> (&val_a), val_a.db_size ())
+inline db_val::db_val (nano::account_info const & value) :
+	span_view{ reinterpret_cast<uint8_t const *> (&value), value.db_size () }
 {
 }
 
-inline db_val::db_val (nano::account_info_v22 const & val_a) :
-	span_view (reinterpret_cast<uint8_t const *> (&val_a), val_a.db_size ())
+inline db_val::db_val (nano::account_info_v22 const & value) :
+	span_view{ reinterpret_cast<uint8_t const *> (&value), value.db_size () }
 {
 }
 
-inline db_val::db_val (nano::pending_info const & val_a) :
-	span_view (reinterpret_cast<uint8_t const *> (&val_a), val_a.db_size ())
+inline db_val::db_val (nano::pending_info const & value) :
+	span_view{ reinterpret_cast<uint8_t const *> (&value), value.db_size () }
 {
 	static_assert (std::is_standard_layout<nano::pending_info>::value, "Standard layout is required");
 }
 
-inline db_val::db_val (nano::pending_key const & val_a) :
-	span_view (reinterpret_cast<uint8_t const *> (&val_a), sizeof (val_a))
+inline db_val::db_val (nano::pending_key const & value) :
+	span_view{ reinterpret_cast<uint8_t const *> (&value), sizeof (value) }
 {
 	static_assert (std::is_standard_layout<nano::pending_key>::value, "Standard layout is required");
 }
 
-inline db_val::db_val (nano::confirmation_height_info const & val_a) :
-	buffer (std::make_shared<std::vector<uint8_t>> ())
+inline db_val::db_val (nano::confirmation_height_info const & value) :
+	buffer{ std::make_shared<std::vector<uint8_t>> () }
 {
 	{
-		nano::vectorstream stream (*buffer);
-		val_a.serialize (stream);
+		nano::vectorstream stream{ *buffer };
+		value.serialize (stream);
 	}
 	convert_buffer_to_value ();
 }
 
-inline db_val::db_val (nano::block_info const & val_a) :
-	span_view (reinterpret_cast<uint8_t const *> (&val_a), sizeof (val_a))
+inline db_val::db_val (nano::block_info const & value) :
+	span_view{ reinterpret_cast<uint8_t const *> (&value), sizeof (value) }
 {
 	static_assert (std::is_standard_layout<nano::block_info>::value, "Standard layout is required");
 }
 
-inline db_val::db_val (nano::endpoint_key const & val_a) :
-	span_view (reinterpret_cast<uint8_t const *> (&val_a), sizeof (val_a))
+inline db_val::db_val (nano::endpoint_key const & value) :
+	span_view{ reinterpret_cast<uint8_t const *> (&value), sizeof (value) }
 {
 	static_assert (std::is_standard_layout<nano::endpoint_key>::value, "Standard layout is required");
 }
 
-inline db_val::db_val (std::shared_ptr<nano::block> const & val_a) :
-	buffer (std::make_shared<std::vector<uint8_t>> ())
+inline db_val::db_val (std::shared_ptr<nano::block> const & block) :
+	buffer{ std::make_shared<std::vector<uint8_t>> () }
 {
 	{
-		nano::vectorstream stream (*buffer);
-		nano::serialize_block (stream, *val_a);
+		nano::vectorstream stream{ *buffer };
+		nano::serialize_block (stream, *block);
 	}
 	convert_buffer_to_value ();
 }
 
-/*
- * Conversion operators
- */
+// Conversion operator implementations
 
 inline db_val::operator uint64_t () const
 {
 	uint64_t result;
-	nano::bufferstream stream (span_view.data (), span_view.size ());
-	auto error (nano::try_read (stream, result));
+	nano::bufferstream stream{ span_view.data (), span_view.size () };
+	auto error{ nano::try_read (stream, result) };
 	(void)error;
 	debug_assert (!error);
 	boost::endian::big_to_native_inplace (result);
@@ -169,9 +165,9 @@ inline db_val::operator nano::pending_key () const
 
 inline db_val::operator nano::confirmation_height_info () const
 {
-	nano::bufferstream stream (span_view.data (), span_view.size ());
+	nano::bufferstream stream{ span_view.data (), span_view.size () };
 	nano::confirmation_height_info result;
-	bool error (result.deserialize (stream));
+	bool error{ result.deserialize (stream) };
 	(void)error;
 	debug_assert (!error);
 	return result;
@@ -196,8 +192,8 @@ inline db_val::operator nano::endpoint_key () const
 
 inline db_val::operator std::shared_ptr<nano::block> () const
 {
-	nano::bufferstream stream (span_view.data (), span_view.size ());
-	std::shared_ptr<nano::block> result (nano::deserialize_block (stream));
+	nano::bufferstream stream{ span_view.data (), span_view.size () };
+	std::shared_ptr<nano::block> result{ nano::deserialize_block (stream) };
 	return result;
 }
 
@@ -218,7 +214,7 @@ inline db_val::operator nano::public_key () const
 
 inline db_val::operator std::array<char, 64> () const
 {
-	nano::bufferstream stream (span_view.data (), span_view.size ());
+	nano::bufferstream stream{ span_view.data (), span_view.size () };
 	std::array<char, 64> result;
 	auto error = nano::try_read (stream, result);
 	(void)error;
@@ -228,7 +224,7 @@ inline db_val::operator std::array<char, 64> () const
 
 inline db_val::operator nano::store::block_w_sideband () const
 {
-	nano::bufferstream stream (span_view.data (), span_view.size ());
+	nano::bufferstream stream{ span_view.data (), span_view.size () };
 	nano::store::block_w_sideband block_w_sideband;
 	block_w_sideband.block = (nano::deserialize_block (stream));
 	auto error = block_w_sideband.sideband.deserialize (stream, block_w_sideband.block->type ());
@@ -239,9 +235,9 @@ inline db_val::operator nano::store::block_w_sideband () const
 
 inline db_val::operator std::shared_ptr<nano::vote> () const
 {
-	nano::bufferstream stream (span_view.data (), span_view.size ());
-	auto error (false);
-	auto result (nano::make_shared<nano::vote> (error, stream));
+	nano::bufferstream stream{ span_view.data (), span_view.size () };
+	auto error{ false };
+	auto result{ nano::make_shared<nano::vote> (error, stream) };
 	debug_assert (!error);
 	return result;
 }
@@ -257,11 +253,11 @@ inline db_val::operator nano::no_value () const
 }
 
 template <typename Block>
-inline std::shared_ptr<Block> db_val::convert_to_block () const
+inline auto db_val::convert_to_block () const -> std::shared_ptr<Block>
 {
-	nano::bufferstream stream (span_view.data (), span_view.size ());
-	auto error (false);
-	auto result (nano::make_shared<Block> (error, stream));
+	nano::bufferstream stream{ span_view.data (), span_view.size () };
+	auto error{ false };
+	auto result{ nano::make_shared<Block> (error, stream) };
 	debug_assert (!error);
 	return result;
 }
@@ -291,16 +287,18 @@ inline db_val::operator std::shared_ptr<nano::state_block> () const
 	return convert_to_block<nano::state_block> ();
 }
 
-inline void db_val::convert_buffer_to_value ()
+// Member function implementations
+
+inline auto db_val::convert_buffer_to_value () noexcept -> void
 {
 	if (buffer)
 	{
-		span_view = std::span<uint8_t const> (buffer->data (), buffer->size ());
+		span_view = std::span<uint8_t const>{ buffer->data (), buffer->size () };
 	}
 }
 
 template <typename T>
-inline T db_val::convert () const
+inline auto db_val::convert () const -> T
 {
 	T result;
 	debug_assert (span_view.size () == sizeof (result));
