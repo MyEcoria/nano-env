@@ -486,6 +486,11 @@ nano::block_status nano::block_processor::process_one (secure::write_transaction
 			logger.debug (nano::log::type::block_processor, "Block has insufficient work: {}", hash);
 			break;
 		}
+		case nano::block_status::invalid:
+		{
+			debug_assert (false, "invalid block status"); // This should never happen
+			break;
+		}
 	}
 	return result;
 }

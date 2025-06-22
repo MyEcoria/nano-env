@@ -23,7 +23,7 @@ public:
 
 	nano::secure::write_transaction const & transaction;
 	nano::ledger & ledger;
-	nano::block_status result;
+	nano::block_status result{ nano::block_status::invalid };
 
 private:
 	bool validate_epoch_block (nano::state_block const & block);
