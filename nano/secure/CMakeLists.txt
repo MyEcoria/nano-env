@@ -24,6 +24,8 @@ add_library(
   generate_cache_flags.hpp
   ledger.hpp
   ledger.cpp
+  ledger_processor.hpp
+  ledger_processor.cpp
   ledger_set_any.hpp
   ledger_set_any.cpp
   ledger_set_confirmed.hpp
