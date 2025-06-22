@@ -30,77 +30,6 @@
 
 #include <cryptopp/words.h>
 
-namespace
-{
-
-/**
- * Determine the representative for this block
- */
-class representative_visitor final : public nano::block_visitor
-{
-public:
-	representative_visitor (nano::secure::transaction const & transaction_a, nano::ledger & ledger);
-	~representative_visitor () = default;
-	void compute (nano::block_hash const & hash_a);
-	void send_block (nano::send_block const & block_a) override;
-	void receive_block (nano::receive_block const & block_a) override;
-	void open_block (nano::open_block const & block_a) override;
-	void change_block (nano::change_block const & block_a) override;
-	void state_block (nano::state_block const & block_a) override;
-	nano::secure::transaction const & transaction;
-	nano::ledger & ledger;
-	nano::block_hash current;
-	nano::block_hash result;
-};
-
-representative_visitor::representative_visitor (nano::secure::transaction const & transaction_a, nano::ledger & ledger) :
-	transaction{ transaction_a },
-	ledger{ ledger },
-	result{ 0 }
-{
-}
-
-void representative_visitor::compute (nano::block_hash const & hash_a)
-{
-	current = hash_a;
-	while (result.is_zero ())
-	{
-		auto block_l = ledger.any.block_get (transaction, current);
-		release_assert (block_l != nullptr);
-		block_l->visit (*this);
-	}
-}
-
-void representative_visitor::send_block (nano::send_block const & block_a)
-{
-	current = block_a.previous ();
-}
-
-void representative_visitor::receive_block (nano::receive_block const & block_a)
-{
-	current = block_a.previous ();
-}
-
-void representative_visitor::open_block (nano::open_block const & block_a)
-{
-	result = block_a.hash ();
-}
-
-void representative_visitor::change_block (nano::change_block const & block_a)
-{
-	result = block_a.hash ();
-}
-
-void representative_visitor::state_block (nano::state_block const & block_a)
-{
-	result = block_a.hash ();
-}
-}
-
-/*
- * ledger
- */
-
 nano::ledger::ledger (nano::store::component & store_a, nano::ledger_constants & constants_a, nano::stats & stats_a, nano::logger & logger_a, nano::generate_cache_flags generate_cache_flags_a, nano::uint128_t min_rep_weight_a) :
 	store{ store_a },
 	constants{ constants_a },
@@ -443,18 +372,64 @@ nano::block_status nano::ledger::process (secure::write_transaction const & tran
 	return processor.result;
 }
 
-nano::block_hash nano::ledger::representative (secure::transaction const & transaction_a, nano::block_hash const & hash_a)
+namespace
 {
-	auto result (representative_calculated (transaction_a, hash_a));
-	debug_assert (result.is_zero () || any.block_exists (transaction_a, result));
-	return result;
+class representative_block_visitor final : public nano::block_visitor
+{
+public:
+	representative_block_visitor (nano::secure::transaction const & transaction, nano::ledger & ledger) :
+		transaction{ transaction },
+		ledger{ ledger }
+	{
+	}
+
+	void compute (nano::block_hash const & hash)
+	{
+		current = hash;
+		while (result.is_zero ())
+		{
+			auto block = ledger.any.block_get (transaction, current);
+			release_assert (block != nullptr);
+			block->visit (*this);
+		}
+	}
+
+	void send_block (nano::send_block const & block) override
+	{
+		current = block.previous ();
+	}
+	void receive_block (nano::receive_block const & block) override
+	{
+		current = block.previous ();
+	}
+	void open_block (nano::open_block const & block) override
+	{
+		result = block.hash ();
+	}
+	void change_block (nano::change_block const & block) override
+	{
+		result = block.hash ();
+	}
+	void state_block (nano::state_block const & block) override
+	{
+		result = block.hash ();
+	}
+
+	nano::secure::transaction const & transaction;
+	nano::ledger & ledger;
+
+	nano::block_hash current{ 0 };
+	nano::block_hash result{ 0 };
+};
 }
 
-nano::block_hash nano::ledger::representative_calculated (secure::transaction const & transaction_a, nano::block_hash const & hash_a)
+nano::block_hash nano::ledger::representative (secure::transaction const & transaction, nano::block_hash const & hash)
 {
-	representative_visitor visitor (transaction_a, *this);
-	visitor.compute (hash_a);
-	return visitor.result;
+	representative_block_visitor visitor{ transaction, *this };
+	visitor.compute (hash);
+	auto result = visitor.result;
+	debug_assert (result.is_zero () || any.block_exists (transaction, result));
+	return result;
 }
 
 std::string nano::ledger::block_text (char const * hash_a)
@@ -595,19 +570,6 @@ nano::root nano::ledger::latest_root (secure::transaction const & transaction_a,
 	}
 }
 
-void nano::ledger::dump_account_chain (nano::account const & account_a, std::ostream & stream)
-{
-	auto transaction = tx_begin_read ();
-	auto hash (any.account_head (transaction, account_a));
-	while (!hash.is_zero ())
-	{
-		auto block_l = any.block_get (transaction, hash);
-		debug_assert (block_l != nullptr);
-		stream << hash.to_string () << std::endl;
-		hash = block_l->previous ();
-	}
-}
-
 bool nano::ledger::dependents_confirmed (secure::transaction const & transaction_a, nano::block const & block_a) const
 {
 	auto dependencies (dependent_blocks (transaction_a, block_a));
@@ -626,45 +588,48 @@ bool nano::ledger::is_epoch_link (nano::link const & link_a) const
 	return constants.epochs.is_epoch_link (link_a);
 }
 
-class dependent_block_visitor : public nano::block_visitor
+namespace
+{
+class dependent_block_visitor final : public nano::block_visitor
 {
 public:
-	dependent_block_visitor (nano::ledger const & ledger_a, nano::secure::transaction const & transaction_a) :
-		ledger (ledger_a),
-		transaction (transaction_a),
-		result ({ 0, 0 })
+	dependent_block_visitor (nano::secure::transaction const & transaction, nano::ledger const & ledger) :
+		transaction{ transaction },
+		ledger{ ledger }
 	{
 	}
-	void send_block (nano::send_block const & block_a) override
+
+	void send_block (nano::send_block const & block) override
 	{
-		result[0] = block_a.previous ();
+		result[0] = block.previous ();
 	}
-	void receive_block (nano::receive_block const & block_a) override
+	void receive_block (nano::receive_block const & block) override
 	{
-		result[0] = block_a.previous ();
-		result[1] = block_a.source_field ().value ();
+		result[0] = block.previous ();
+		result[1] = block.source_field ().value ();
 	}
-	void open_block (nano::open_block const & block_a) override
+	void open_block (nano::open_block const & block) override
 	{
-		if (block_a.source_field ().value () != ledger.constants.genesis->account ().as_union ())
+		if (block.source_field ().value () != ledger.constants.genesis->account ().as_union ())
 		{
-			result[0] = block_a.source_field ().value ();
+			result[0] = block.source_field ().value ();
 		}
 	}
-	void change_block (nano::change_block const & block_a) override
+	void change_block (nano::change_block const & block) override
 	{
-		result[0] = block_a.previous ();
+		result[0] = block.previous ();
 	}
-	void state_block (nano::state_block const & block_a) override
+	void state_block (nano::state_block const & block) override
 	{
-		result[0] = block_a.hashables.previous;
-		result[1] = block_a.hashables.link.as_block_hash ();
+		result[0] = block.hashables.previous;
+		result[1] = block.hashables.link.as_block_hash ();
 		// ledger.is_send will check the sideband first, if block_a has a loaded sideband the check that previous block exists can be skipped
-		if (ledger.is_epoch_link (block_a.hashables.link) || is_send (block_a))
+		if (ledger.is_epoch_link (block.hashables.link) || is_send (block))
 		{
 			result[1].clear ();
 		}
 	}
+
 	// This function is used in place of block->is_send () as it is tolerant to the block not having the sideband information loaded
 	// This is needed for instance in vote generation on forks which have not yet had sideband information attached
 	bool is_send (nano::state_block const & block) const
@@ -679,15 +644,18 @@ public:
 		}
 		return block.balance_field ().value () < ledger.any.block_balance (transaction, block.previous ());
 	}
+
 	nano::ledger const & ledger;
 	nano::secure::transaction const & transaction;
-	std::array<nano::block_hash, 2> result;
-};
 
-std::array<nano::block_hash, 2> nano::ledger::dependent_blocks (secure::transaction const & transaction_a, nano::block const & block_a) const
+	std::array<nano::block_hash, 2> result{ 0, 0 };
+};
+}
+
+std::array<nano::block_hash, 2> nano::ledger::dependent_blocks (secure::transaction const & transaction, nano::block const & block) const
 {
-	dependent_block_visitor visitor (*this, transaction_a);
-	block_a.visit (visitor);
+	dependent_block_visitor visitor{ transaction, *this };
+	block.visit (visitor);
 	return visitor.result;
 }
 
