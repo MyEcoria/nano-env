@@ -38,7 +38,7 @@ public:
 	}
 
 	db_val (std::nullptr_t) noexcept :
-		span_view{}
+		span_view{ reinterpret_cast<uint8_t const *> (""), 0 } // Use empty string literal to provide valid pointer for zero-size memcpy
 	{
 	}
 
