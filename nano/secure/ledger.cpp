@@ -423,7 +423,7 @@ public:
 };
 }
 
-nano::block_hash nano::ledger::representative (secure::transaction const & transaction, nano::block_hash const & hash)
+nano::block_hash nano::ledger::representative_block (secure::transaction const & transaction, nano::block_hash const & hash)
 {
 	representative_block_visitor visitor{ transaction, *this };
 	visitor.compute (hash);

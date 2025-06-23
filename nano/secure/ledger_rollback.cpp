@@ -79,7 +79,7 @@ void nano::ledger_rollback::open_block (nano::open_block const & block_a)
 void nano::ledger_rollback::change_block (nano::change_block const & block_a)
 {
 	auto hash (block_a.hash ());
-	auto rep_block_hash (ledger.representative (transaction, block_a.hashables.previous));
+	auto rep_block_hash (ledger.representative_block (transaction, block_a.hashables.previous));
 	auto account = block_a.account ();
 	auto info = ledger.any.account_get (transaction, account);
 	release_assert (info);
@@ -132,7 +132,7 @@ void nano::ledger_rollback::state_block (nano::state_block const & block_a)
 	nano::block_hash rep_block_hash (0);
 	if (!block_a.hashables.previous.is_zero ())
 	{
-		rep_block_hash = ledger.representative (transaction, block_a.hashables.previous);
+		rep_block_hash = ledger.representative_block (transaction, block_a.hashables.previous);
 	}
 
 	nano::account previous_representative{};

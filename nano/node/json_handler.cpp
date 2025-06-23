@@ -616,7 +616,7 @@ void nano::json_handler::account_info ()
 		{
 			response_l.put ("frontier", info.head.to_string ());
 			response_l.put ("open_block", info.open_block.to_string ());
-			response_l.put ("representative_block", node.ledger.representative (transaction, info.head).to_string ());
+			response_l.put ("representative_block", node.ledger.representative_block (transaction, info.head).to_string ());
 			nano::amount balance_l (info.balance);
 			std::string balance = balance_l.to_string_dec ();
 
@@ -671,7 +671,7 @@ void nano::json_handler::account_info ()
 						confirmed_representative = confirmed_frontier_block->representative_field ().value_or (0);
 						if (confirmed_representative.is_zero ())
 						{
-							confirmed_representative = node.ledger.any.block_get (transaction, node.ledger.representative (transaction, confirmation_height_info.frontier))->representative_field ().value ();
+							confirmed_representative = node.ledger.any.block_get (transaction, node.ledger.representative_block (transaction, confirmation_height_info.frontier))->representative_field ().value ();
 						}
 					}
 
@@ -2834,7 +2834,7 @@ void nano::json_handler::ledger ()
 					}
 					response_a.put ("frontier", info.head.to_string ());
 					response_a.put ("open_block", info.open_block.to_string ());
-					response_a.put ("representative_block", node.ledger.representative (transaction, info.head).to_string ());
+					response_a.put ("representative_block", node.ledger.representative_block (transaction, info.head).to_string ());
 					std::string balance = nano::uint128_union (info.balance).to_string_dec ();
 					response_a.put ("balance", balance);
 					response_a.put ("modified_timestamp", std::to_string (info.modified));
@@ -2886,7 +2886,7 @@ void nano::json_handler::ledger ()
 					}
 					response_a.put ("frontier", info.head.to_string ());
 					response_a.put ("open_block", info.open_block.to_string ());
-					response_a.put ("representative_block", node.ledger.representative (transaction, info.head).to_string ());
+					response_a.put ("representative_block", node.ledger.representative_block (transaction, info.head).to_string ());
 					std::string balance = (i->first).to_string_dec ();
 					response_a.put ("balance", balance);
 					response_a.put ("modified_timestamp", std::to_string (info.modified));
@@ -4748,7 +4748,7 @@ void nano::json_handler::wallet_ledger ()
 					boost::property_tree::ptree entry;
 					entry.put ("frontier", info->head.to_string ());
 					entry.put ("open_block", info->open_block.to_string ());
-					entry.put ("representative_block", node.ledger.representative (block_transaction, info->head).to_string ());
+					entry.put ("representative_block", node.ledger.representative_block (block_transaction, info->head).to_string ());
 					std::string balance = nano::uint128_union (info->balance).to_string_dec ();
 					entry.put ("balance", balance);
 					entry.put ("modified_timestamp", std::to_string (info->modified));
