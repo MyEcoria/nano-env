@@ -2,7 +2,7 @@
 
 #include <nano/lib/numbers.hpp>
 #include <nano/store/component.hpp>
-#include <nano/store/db_val_impl.hpp>
+#include <nano/store/db_val_templ.hpp>
 #include <nano/store/reverse_iterator.hpp>
 #include <nano/store/typed_iterator.hpp>
 

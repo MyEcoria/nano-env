@@ -45,8 +45,7 @@ void nano::store::rocksdb::rep_weight::del (store::write_transaction const & txn
 
 auto nano::store::rocksdb::rep_weight::begin (store::transaction const & txn_a, nano::account const & representative_a) const -> iterator
 {
-	rocksdb::db_val val{ representative_a };
-	return iterator{ store::iterator{ rocksdb::iterator::lower_bound (store.db.get (), rocksdb::tx (txn_a), store.table_to_column_family (tables::rep_weights), val) } };
+	return iterator{ store::iterator{ rocksdb::iterator::lower_bound (store.db.get (), rocksdb::tx (txn_a), store.table_to_column_family (tables::rep_weights), to_slice (representative_a)) } };
 }
 
 auto nano::store::rocksdb::rep_weight::begin (store::transaction const & txn_a) const -> iterator

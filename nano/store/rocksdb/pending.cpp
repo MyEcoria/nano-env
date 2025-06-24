@@ -1,5 +1,5 @@
 #include <nano/secure/parallel_traversal.hpp>
-#include <nano/store/lmdb/pending.hpp>
+#include <nano/store/rocksdb/pending.hpp>
 #include <nano/store/rocksdb/rocksdb.hpp>
 #include <nano/store/rocksdb/utility.hpp>
 
@@ -48,8 +48,7 @@ bool nano::store::rocksdb::pending::any (store::transaction const & transaction_
 
 auto nano::store::rocksdb::pending::begin (store::transaction const & transaction_a, nano::pending_key const & key_a) const -> iterator
 {
-	rocksdb::db_val val{ key_a };
-	return iterator{ store::iterator{ rocksdb::iterator::lower_bound (store.db.get (), rocksdb::tx (transaction_a), store.table_to_column_family (tables::pending), val) } };
+	return iterator{ store::iterator{ rocksdb::iterator::lower_bound (store.db.get (), rocksdb::tx (transaction_a), store.table_to_column_family (tables::pending), to_slice (key_a)) } };
 }
 
 auto nano::store::rocksdb::pending::begin (store::transaction const & transaction_a) const -> iterator

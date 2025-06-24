@@ -1,6 +1,5 @@
 #include <nano/lib/utility.hpp>
-#include <nano/store/db_val_impl.hpp>
-#include <nano/store/lmdb/db_val.hpp>
+#include <nano/store/db_val_templ.hpp>
 #include <nano/store/typed_iterator.hpp>
 
 namespace nano::store
@@ -10,10 +9,9 @@ void typed_iterator<Key, Value>::update ()
 {
 	if (!iter.is_end ())
 	{
-		// FIXME Don't convert via lmdb::db_val, this is just a placeholder
 		auto const & data = *iter;
-		lmdb::db_val key_val{ MDB_val{ data.first.size (), const_cast<void *> (reinterpret_cast<void const *> (data.first.data ())) } };
-		lmdb::db_val value_val{ MDB_val{ data.second.size (), const_cast<void *> (reinterpret_cast<void const *> (data.second.data ())) } };
+		db_val key_val{ data.first };
+		db_val value_val{ data.second };
 		current = std::make_pair (static_cast<Key> (key_val), static_cast<Value> (value_val));
 	}
 	else

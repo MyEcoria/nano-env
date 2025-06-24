@@ -1,6 +1,7 @@
 #include <nano/secure/parallel_traversal.hpp>
 #include <nano/store/lmdb/final_vote.hpp>
 #include <nano/store/lmdb/lmdb.hpp>
+#include <nano/store/lmdb/utility.hpp>
 
 nano::store::lmdb::final_vote::final_vote (nano::store::lmdb::component & store) :
 	store{ store } {};
@@ -53,8 +54,7 @@ void nano::store::lmdb::final_vote::clear (store::write_transaction const & tran
 
 auto nano::store::lmdb::final_vote::begin (store::transaction const & transaction, nano::qualified_root const & root) const -> iterator
 {
-	lmdb::db_val val{ root };
-	return iterator{ store::iterator{ lmdb::iterator::lower_bound (store.env.tx (transaction), final_votes_handle, val) } };
+	return iterator{ store::iterator{ lmdb::iterator::lower_bound (store.env.tx (transaction), final_votes_handle, to_mdb_val (root)) } };
 }
 
 auto nano::store::lmdb::final_vote::begin (store::transaction const & transaction) const -> iterator

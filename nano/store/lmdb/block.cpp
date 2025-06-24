@@ -1,7 +1,8 @@
 #include <nano/secure/parallel_traversal.hpp>
-#include <nano/store/db_val_impl.hpp>
+#include <nano/store/db_val_templ.hpp>
 #include <nano/store/lmdb/block.hpp>
 #include <nano/store/lmdb/lmdb.hpp>
+#include <nano/store/lmdb/utility.hpp>
 
 namespace nano::store::lmdb
 {
@@ -129,8 +130,7 @@ auto nano::store::lmdb::block::begin (store::transaction const & transaction) co
 
 auto nano::store::lmdb::block::begin (store::transaction const & transaction, nano::block_hash const & hash) const -> iterator
 {
-	lmdb::db_val val{ hash };
-	return iterator{ store::iterator{ lmdb::iterator::lower_bound (store.env.tx (transaction), blocks_handle, val) } };
+	return iterator{ store::iterator{ lmdb::iterator::lower_bound (store.env.tx (transaction), blocks_handle, to_mdb_val (hash)) } };
 }
 
 auto nano::store::lmdb::block::end (store::transaction const & transaction_a) const -> iterator

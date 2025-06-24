@@ -62,8 +62,7 @@ void nano::store::rocksdb::confirmation_height::clear (store::write_transaction 
 
 auto nano::store::rocksdb::confirmation_height::begin (store::transaction const & transaction, nano::account const & account) const -> iterator
 {
-	rocksdb::db_val val{ account };
-	return iterator{ store::iterator{ rocksdb::iterator::lower_bound (store.db.get (), rocksdb::tx (transaction), store.table_to_column_family (tables::confirmation_height), val) } };
+	return iterator{ store::iterator{ rocksdb::iterator::lower_bound (store.db.get (), rocksdb::tx (transaction), store.table_to_column_family (tables::confirmation_height), to_slice (account)) } };
 }
 
 auto nano::store::rocksdb::confirmation_height::begin (store::transaction const & transaction) const -> iterator
