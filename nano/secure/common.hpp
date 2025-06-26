@@ -133,6 +133,7 @@ namespace confirmation_height
 
 enum class block_status
 {
+	invalid, // Status is unknown, block is not processed yet (default value)
 	progress, // Hasn't been seen before, signed correctly
 	bad_signature, // Signature was bad, forged or transmission error
 	old, // Already seen and was valid

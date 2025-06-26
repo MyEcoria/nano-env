@@ -57,8 +57,7 @@ public:
 	nano::uint128_t weight_exact (secure::transaction const &, nano::account const &) const;
 	std::shared_ptr<nano::block> forked_block (secure::transaction const &, nano::block const &);
 	nano::root latest_root (secure::transaction const &, nano::account const &);
-	nano::block_hash representative (secure::transaction const &, nano::block_hash const &);
-	nano::block_hash representative_calculated (secure::transaction const &, nano::block_hash const &);
+	nano::block_hash representative_block (secure::transaction const &, nano::block_hash const &);
 	std::string block_text (char const *);
 	std::string block_text (nano::block_hash const &);
 	std::deque<std::shared_ptr<nano::block>> random_blocks (secure::transaction const &, size_t count) const;
@@ -69,7 +68,6 @@ public:
 	bool rollback (secure::write_transaction const &, nano::block_hash const &);
 	void update_account (secure::write_transaction const &, nano::account const &, nano::account_info const &, nano::account_info const &);
 	uint64_t pruning_action (secure::write_transaction &, nano::block_hash const &, uint64_t const);
-	void dump_account_chain (nano::account const &, std::ostream & = std::cout);
 	bool dependents_confirmed (secure::transaction const &, nano::block const &) const;
 	bool is_epoch_link (nano::link const &) const;
 	std::array<nano::block_hash, 2> dependent_blocks (secure::transaction const &, nano::block const &) const;
