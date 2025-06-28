@@ -520,7 +520,7 @@ TEST (history, short_text)
 	nano::logger logger;
 	nano::stats stats{ logger };
 	auto store = nano::make_store (logger, nano::unique_path (), nano::dev::constants);
-	ASSERT_TRUE (!store->init_error ());
+
 	nano::ledger ledger (*store, nano::dev::constants, stats, logger);
 	{
 		auto transaction (ledger.tx_begin_write ());
@@ -558,7 +558,7 @@ TEST (history, pruned_source)
 	nano::logger logger;
 	nano::stats stats{ logger };
 	auto store = nano::make_store (logger, nano::unique_path (), nano::dev::constants);
-	ASSERT_TRUE (!store->init_error ());
+
 	nano::ledger ledger (*store, nano::dev::constants, stats, logger);
 	ledger.pruning = true;
 	nano::block_hash next_pruning;

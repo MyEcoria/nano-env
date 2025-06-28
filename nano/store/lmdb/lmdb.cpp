@@ -15,6 +15,7 @@
 #include <boost/property_tree/json_parser.hpp>
 
 #include <queue>
+#include <stdexcept>
 
 template class nano::store::typed_iterator<nano::account, nano::account_info_v22>;
 
@@ -79,8 +80,7 @@ nano::store::lmdb::component::component (nano::logger & logger_a, std::filesyste
 				// Either following cases cannot run in read-only mode:
 				// a) there is no database yet, the access needs to be in write mode for it to be created;
 				// b) it will upgrade, and it is not possible to do it in read-only mode.
-				error = true;
-				return;
+				throw std::runtime_error ("Database requires upgrade but was opened in read-only mode");
 			}
 
 			if (!is_fresh_db)
@@ -95,20 +95,9 @@ nano::store::lmdb::component::component (nano::logger & logger_a, std::filesyste
 			auto needs_vacuuming = false;
 			{
 				auto transaction (tx_begin_write ());
-				open_databases (error, transaction, MDB_CREATE);
-				if (!error)
-				{
-					error |= do_upgrades (transaction, constants, needs_vacuuming);
-					if (error)
-					{
-						logger.error (nano::log::type::lmdb, "Failed to upgrade database: {}", database_path.string ());
-						return;
-					}
-					else
-					{
-						logger.info (nano::log::type::lmdb, "Database upgraded successfully to version {}", version_current);
-					}
-				}
+				open_databases (transaction, MDB_CREATE);
+				do_upgrades (transaction, constants, needs_vacuuming);
+				logger.info (nano::log::type::lmdb, "Database upgraded successfully to version {}", version_current);
 			}
 
 			if (needs_vacuuming)
@@ -130,12 +119,12 @@ nano::store::lmdb::component::component (nano::logger & logger_a, std::filesyste
 		else
 		{
 			auto transaction (tx_begin_read ());
-			open_databases (error, transaction, 0);
+			open_databases (transaction, 0);
 		}
 	}
 	else
 	{
-		logger.critical (nano::log::type::lmdb, "Failed to initialize database environment: {}", database_path.string ());
+		throw std::runtime_error ("Failed to initialize LMDB store: " + database_path.string ());
 	}
 }
 
@@ -163,7 +152,11 @@ bool nano::store::lmdb::component::vacuum_after_upgrade (std::filesystem::path c
 		if (!error)
 		{
 			auto transaction (tx_begin_read ());
-			open_databases (error, transaction, 0);
+			open_databases (transaction, 0);
+		}
+		else
+		{
+			throw std::runtime_error ("Failed to reinitialize LMDB store after vacuum: " + path_a.string ());
 		}
 	}
 	else
@@ -232,30 +225,38 @@ nano::store::lmdb::txn_callbacks nano::store::lmdb::component::create_txn_callba
 	return mdb_txn_callbacks;
 }
 
-void nano::store::lmdb::component::open_databases (bool & error_a, store::transaction const & transaction_a, unsigned flags)
+void nano::store::lmdb::component::open_table (store::transaction const & transaction_a, char const * name, unsigned flags, MDB_dbi & handle)
 {
-	error_a |= mdb_dbi_open (env.tx (transaction_a), "online_weight", flags, &online_weight_store.online_weight_handle) != 0;
-	error_a |= mdb_dbi_open (env.tx (transaction_a), "meta", flags, &version_store.meta_handle) != 0;
-	error_a |= mdb_dbi_open (env.tx (transaction_a), "peers", flags, &peer_store.peers_handle) != 0;
-	error_a |= mdb_dbi_open (env.tx (transaction_a), "pruned", flags, &pruned_store.pruned_handle) != 0;
-	error_a |= mdb_dbi_open (env.tx (transaction_a), "confirmation_height", flags, &confirmation_height_store.confirmation_height_handle) != 0;
-	error_a |= mdb_dbi_open (env.tx (transaction_a), "accounts", flags, &account_store.accounts_v0_handle) != 0;
-	account_store.accounts_handle = account_store.accounts_v0_handle;
-	error_a |= mdb_dbi_open (env.tx (transaction_a), "pending", flags, &pending_store.pending_v0_handle) != 0;
-	pending_store.pending_handle = pending_store.pending_v0_handle;
-	error_a |= mdb_dbi_open (env.tx (transaction_a), "final_votes", flags, &final_vote_store.final_votes_handle) != 0;
-	error_a |= mdb_dbi_open (env.tx (transaction_a), "blocks", MDB_CREATE, &block_store.blocks_handle) != 0;
-	error_a |= mdb_dbi_open (env.tx (transaction_a), "rep_weights", flags, &rep_weight_store.rep_weights_handle) != 0;
+	auto status = mdb_dbi_open (env.tx (transaction_a), name, flags, &handle);
+	if (status != 0)
+	{
+		throw std::runtime_error ("Failed to open " + std::string (name) + " database: " + error_string (status));
+	}
 }
 
-bool nano::store::lmdb::component::do_upgrades (store::write_transaction & transaction, nano::ledger_constants & constants, bool & needs_vacuuming)
+void nano::store::lmdb::component::open_databases (store::transaction const & transaction_a, unsigned flags)
 {
-	auto error (false);
+	open_table (transaction_a, "online_weight", flags, online_weight_store.online_weight_handle);
+	open_table (transaction_a, "meta", flags, version_store.meta_handle);
+	open_table (transaction_a, "peers", flags, peer_store.peers_handle);
+	open_table (transaction_a, "pruned", flags, pruned_store.pruned_handle);
+	open_table (transaction_a, "confirmation_height", flags, confirmation_height_store.confirmation_height_handle);
+	open_table (transaction_a, "accounts", flags, account_store.accounts_v0_handle);
+	account_store.accounts_handle = account_store.accounts_v0_handle;
+	open_table (transaction_a, "pending", flags, pending_store.pending_v0_handle);
+	pending_store.pending_handle = pending_store.pending_v0_handle;
+	open_table (transaction_a, "final_votes", flags, final_vote_store.final_votes_handle);
+	open_table (transaction_a, "blocks", MDB_CREATE, block_store.blocks_handle);
+	open_table (transaction_a, "rep_weights", flags, rep_weight_store.rep_weights_handle);
+}
+
+void nano::store::lmdb::component::do_upgrades (store::write_transaction & transaction, nano::ledger_constants & constants, bool & needs_vacuuming)
+{
 	auto version_l = version.get (transaction);
 	if (version_l < version_minimum)
 	{
 		logger.critical (nano::log::type::lmdb, "The version of the ledger ({}) is lower than the minimum ({}) which is supported for upgrades. Either upgrade a node first or delete the ledger.", version_l, version_minimum);
-		return true;
+		throw std::runtime_error ("Ledger version " + std::to_string (version_l) + " is lower than minimum supported version " + std::to_string (version_minimum));
 	}
 	switch (version_l)
 	{
@@ -272,10 +273,8 @@ bool nano::store::lmdb::component::do_upgrades (store::write_transaction & trans
 			break;
 		default:
 			logger.critical (nano::log::type::lmdb, "The version of the ledger ({}) is too high for this node", version_l);
-			error = true;
-			break;
+			throw std::runtime_error ("Ledger version " + std::to_string (version_l) + " is too high for this node");
 	}
-	return error;
 }
 
 void nano::store::lmdb::component::upgrade_v21_to_v22 (store::write_transaction & transaction)
@@ -565,11 +564,6 @@ void nano::store::lmdb::component::rebuild_db (store::write_transaction const & 
 		release_assert (count (transaction_a, pending_store.pending_handle) == count (transaction_a, temp));
 		mdb_drop (env.tx (transaction_a), temp, 1);
 	}
-}
-
-bool nano::store::lmdb::component::init_error () const
-{
-	return error;
 }
 
 nano::store::lmdb::component::upgrade_counters::upgrade_counters (uint64_t count_before_v0, uint64_t count_before_v1) :

@@ -121,8 +121,6 @@ void nano::daemon::run (std::filesystem::path const & data_path, nano::node_flag
 		}
 
 		auto node = std::make_shared<nano::node> (io_ctx, data_path, config.node, opencl_work, flags);
-		if (!node->init_error ())
-		{
 			// IO context runner should be started first and stopped last to allow asio handlers to execute during node start/stop
 			runner = std::make_unique<nano::thread_runner> (io_ctx, logger, node->config.io_threads, nano::thread_role::name::io_daemon);
 
@@ -204,15 +202,10 @@ void nano::daemon::run (std::filesystem::path const & data_path, nano::node_flag
 			{
 				rpc_process->wait ();
 			}
-		}
-		else
-		{
-			logger.critical (nano::log::type::daemon, "Error initializing node");
-		}
 	}
-	catch (std::runtime_error const & e)
+	catch (std::exception const & ex)
 	{
-		logger.critical (nano::log::type::daemon, "Error while running node: {}", e.what ());
+		logger.critical (nano::log::type::daemon, "Error: {}", ex.what ());
 	}
 
 	logger.info (nano::log::type::daemon, "Stopped");

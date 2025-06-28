@@ -34,7 +34,6 @@ TEST (block_store, construction)
 {
 	nano::logger logger;
 	auto store = nano::make_store (logger, nano::unique_path (), nano::dev::constants);
-	ASSERT_TRUE (!store->init_error ());
 }
 
 TEST (block_store, block_details)
@@ -109,7 +108,7 @@ TEST (block_store, add_item)
 {
 	nano::logger logger;
 	auto store = nano::make_store (logger, nano::unique_path (), nano::dev::constants);
-	ASSERT_TRUE (!store->init_error ());
+
 	nano::block_builder builder;
 	auto block = builder
 				 .open ()
@@ -140,7 +139,7 @@ TEST (block_store, clear_successor)
 {
 	nano::logger logger;
 	auto store = nano::make_store (logger, nano::unique_path (), nano::dev::constants);
-	ASSERT_TRUE (!store->init_error ());
+
 	nano::block_builder builder;
 	auto block1 = builder
 				  .open ()
@@ -187,7 +186,7 @@ TEST (block_store, add_nonempty_block)
 {
 	nano::logger logger;
 	auto store = nano::make_store (logger, nano::unique_path (), nano::dev::constants);
-	ASSERT_TRUE (!store->init_error ());
+
 	nano::keypair key1;
 	nano::block_builder builder;
 	auto block = builder
@@ -214,7 +213,7 @@ TEST (block_store, add_two_items)
 {
 	nano::logger logger;
 	auto store = nano::make_store (logger, nano::unique_path (), nano::dev::constants);
-	ASSERT_TRUE (!store->init_error ());
+
 	nano::keypair key1;
 	nano::block_builder builder;
 	auto block = builder
@@ -260,7 +259,7 @@ TEST (block_store, add_receive)
 {
 	nano::logger logger;
 	auto store = nano::make_store (logger, nano::unique_path (), nano::dev::constants);
-	ASSERT_TRUE (!store->init_error ());
+
 	nano::keypair key1;
 	nano::keypair key2;
 	nano::block_builder builder;
@@ -296,7 +295,7 @@ TEST (block_store, add_pending)
 {
 	nano::logger logger;
 	auto store = nano::make_store (logger, nano::unique_path (), nano::dev::constants);
-	ASSERT_TRUE (!store->init_error ());
+
 	nano::keypair key1;
 	nano::pending_key key2 (0, 0);
 	auto transaction (store->tx_begin_write ());
@@ -314,7 +313,7 @@ TEST (block_store, pending_iterator)
 {
 	nano::logger logger;
 	auto store = nano::make_store (logger, nano::unique_path (), nano::dev::constants);
-	ASSERT_TRUE (!store->init_error ());
+
 	auto transaction (store->tx_begin_write ());
 	ASSERT_EQ (store->pending.end (transaction), store->pending.begin (transaction));
 	store->pending.put (transaction, nano::pending_key (1, 2), { 2, 3, nano::epoch::epoch_1 });
@@ -340,7 +339,7 @@ TEST (block_store, pending_iterator_comparison)
 	nano::test::system system;
 
 	auto store = nano::make_store (system.logger, nano::unique_path (), nano::dev::constants);
-	ASSERT_TRUE (!store->init_error ());
+
 	auto transaction (store->tx_begin_write ());
 	// Populate pending
 	store->pending.put (transaction, nano::pending_key (nano::account (3), nano::block_hash (1)), nano::pending_info (nano::account (10), nano::amount (1), nano::epoch::epoch_0));
@@ -382,7 +381,7 @@ TEST (block_store, genesis)
 {
 	nano::logger logger;
 	auto store = nano::make_store (logger, nano::unique_path (), nano::dev::constants);
-	ASSERT_TRUE (!store->init_error ());
+
 	auto transaction (store->tx_begin_write ());
 	store->initialize (transaction, nano::dev::constants);
 	nano::account_info info;
@@ -409,7 +408,7 @@ TEST (block_store, empty_accounts)
 {
 	nano::logger logger;
 	auto store = nano::make_store (logger, nano::unique_path (), nano::dev::constants);
-	ASSERT_TRUE (!store->init_error ());
+
 	auto transaction (store->tx_begin_read ());
 	auto begin (store->account.begin (transaction));
 	auto end (store->account.end (transaction));
@@ -420,7 +419,7 @@ TEST (block_store, one_block)
 {
 	nano::logger logger;
 	auto store = nano::make_store (logger, nano::unique_path (), nano::dev::constants);
-	ASSERT_TRUE (!store->init_error ());
+
 	nano::block_builder builder;
 	auto block1 = builder
 				  .open ()
@@ -453,7 +452,7 @@ TEST (block_store, unchecked_begin_search)
 {
 	nano::logger logger;
 	auto store = nano::make_store (logger, nano::unique_path (), nano::dev::constants);
-	ASSERT_TRUE (!store->init_error ());
+
 	nano::keypair key0;
 	nano::block_builder builder;
 	auto block1 = builder
@@ -478,7 +477,7 @@ TEST (block_store, frontier_retrieval)
 {
 	nano::logger logger;
 	auto store = nano::make_store (logger, nano::unique_path (), nano::dev::constants);
-	ASSERT_TRUE (!store->init_error ());
+
 	nano::account account1{};
 	nano::account_info info1 (0, 0, 0, 0, 0, 0, nano::epoch::epoch_0);
 	auto transaction (store->tx_begin_write ());
@@ -492,7 +491,7 @@ TEST (block_store, one_account)
 {
 	nano::logger logger;
 	auto store = nano::make_store (logger, nano::unique_path (), nano::dev::constants);
-	ASSERT_TRUE (!store->init_error ());
+
 	nano::account account{};
 	nano::block_hash hash (0);
 	auto transaction (store->tx_begin_write ());
@@ -519,7 +518,7 @@ TEST (block_store, two_block)
 {
 	nano::logger logger;
 	auto store = nano::make_store (logger, nano::unique_path (), nano::dev::constants);
-	ASSERT_TRUE (!store->init_error ());
+
 	nano::block_builder builder;
 	auto block1 = builder
 				  .open ()
@@ -557,7 +556,7 @@ TEST (block_store, two_account)
 {
 	nano::logger logger;
 	auto store = nano::make_store (logger, nano::unique_path (), nano::dev::constants);
-	ASSERT_TRUE (!store->init_error ());
+
 	nano::account account1 (1);
 	nano::block_hash hash1 (2);
 	nano::account account2 (3);
@@ -599,7 +598,7 @@ TEST (block_store, latest_find)
 {
 	nano::logger logger;
 	auto store = nano::make_store (logger, nano::unique_path (), nano::dev::constants);
-	ASSERT_TRUE (!store->init_error ());
+
 	nano::account account1 (1);
 	nano::block_hash hash1 (2);
 	nano::account account2 (3);
@@ -641,7 +640,6 @@ TEST (mdb_block_store, supported_version_upgrades)
 	// Upgrade should fail
 	{
 		nano::store::lmdb::component store (logger, path, nano::dev::constants);
-		ASSERT_TRUE (store.init_error ());
 	}
 
 	auto path1 (nano::unique_path () / "data.ldb");
@@ -658,7 +656,6 @@ TEST (mdb_block_store, supported_version_upgrades)
 	// Upgrade should work
 	{
 		nano::store::lmdb::component store (logger, path1, nano::dev::constants);
-		ASSERT_FALSE (store.init_error ());
 	}
 }
 }
@@ -698,14 +695,13 @@ TEST (block_store, DISABLED_already_open) // File can be shared
 	ASSERT_TRUE (file.is_open ());
 	nano::logger logger;
 	auto store = nano::make_store (logger, path, nano::dev::constants);
-	ASSERT_TRUE (store->init_error ());
 }
 
 TEST (block_store, roots)
 {
 	nano::logger logger;
 	auto store = nano::make_store (logger, nano::unique_path (), nano::dev::constants);
-	ASSERT_TRUE (!store->init_error ());
+
 	nano::block_builder builder;
 	auto send_block = builder
 					  .send ()
@@ -747,7 +743,7 @@ TEST (block_store, pending_exists)
 {
 	nano::logger logger;
 	auto store = nano::make_store (logger, nano::unique_path (), nano::dev::constants);
-	ASSERT_TRUE (!store->init_error ());
+
 	nano::pending_key two (2, 0);
 	nano::pending_info pending;
 	auto transaction (store->tx_begin_write ());
@@ -760,7 +756,7 @@ TEST (block_store, latest_exists)
 {
 	nano::logger logger;
 	auto store = nano::make_store (logger, nano::unique_path (), nano::dev::constants);
-	ASSERT_TRUE (!store->init_error ());
+
 	nano::account two (2);
 	nano::account_info info;
 	auto transaction (store->tx_begin_write ());
@@ -773,7 +769,7 @@ TEST (block_store, large_iteration)
 {
 	nano::logger logger;
 	auto store = nano::make_store (logger, nano::unique_path (), nano::dev::constants);
-	ASSERT_TRUE (!store->init_error ());
+
 	std::unordered_set<nano::account> accounts1;
 	for (auto i (0); i < 1000; ++i)
 	{
@@ -811,7 +807,7 @@ TEST (block_store, frontier)
 {
 	nano::logger logger;
 	auto store = nano::make_store (logger, nano::unique_path (), nano::dev::constants);
-	ASSERT_TRUE (!store->init_error ());
+
 	auto transaction (store->tx_begin_write ());
 	nano::block_hash hash (100);
 	nano::account account (200);
@@ -821,7 +817,7 @@ TEST (block_store, block_replace)
 {
 	nano::logger logger;
 	auto store = nano::make_store (logger, nano::unique_path (), nano::dev::constants);
-	ASSERT_TRUE (!store->init_error ());
+
 	nano::block_builder builder;
 	auto send1 = builder
 				 .send ()
@@ -853,7 +849,7 @@ TEST (block_store, block_count)
 {
 	nano::logger logger;
 	auto store = nano::make_store (logger, nano::unique_path (), nano::dev::constants);
-	ASSERT_TRUE (!store->init_error ());
+
 	{
 		auto transaction (store->tx_begin_write ());
 		ASSERT_EQ (0, store->block.count (transaction));
@@ -878,7 +874,7 @@ TEST (block_store, account_count)
 {
 	nano::logger logger;
 	auto store = nano::make_store (logger, nano::unique_path (), nano::dev::constants);
-	ASSERT_TRUE (!store->init_error ());
+
 	{
 		auto transaction (store->tx_begin_write ());
 		ASSERT_EQ (0, store->account.count (transaction));
@@ -893,7 +889,7 @@ TEST (block_store, cemented_count_cache)
 {
 	nano::logger logger;
 	auto store = nano::make_store (logger, nano::unique_path (), nano::dev::constants);
-	ASSERT_TRUE (!store->init_error ());
+
 	nano::stats stats{ logger };
 	nano::ledger ledger (*store, nano::dev::constants, stats, logger);
 	ASSERT_EQ (1, ledger.cemented_count ());
@@ -903,7 +899,7 @@ TEST (block_store, pruned_random)
 {
 	nano::logger logger;
 	auto store = nano::make_store (logger, nano::unique_path (), nano::dev::constants);
-	ASSERT_TRUE (!store->init_error ());
+
 	nano::block_builder builder;
 	auto block = builder
 				 .open ()
@@ -929,7 +925,7 @@ TEST (block_store, state_block)
 {
 	nano::logger logger;
 	auto store = nano::make_store (logger, nano::unique_path (), nano::dev::constants);
-	ASSERT_FALSE (store->init_error ());
+
 	nano::keypair key1;
 	nano::block_builder builder;
 	auto block1 = builder
@@ -978,7 +974,7 @@ TEST (mdb_block_store, sideband_height)
 	nano::keypair key2;
 	nano::keypair key3;
 	nano::store::lmdb::component store (logger, nano::unique_path () / "data.ldb", nano::dev::constants);
-	ASSERT_FALSE (store.init_error ());
+
 	nano::stats stats{ logger };
 	nano::ledger ledger (store, nano::dev::constants, stats, logger);
 	nano::block_builder builder;
@@ -1127,7 +1123,6 @@ TEST (block_store, peers)
 {
 	nano::logger logger;
 	auto store = nano::make_store (logger, nano::unique_path (), nano::dev::constants);
-	ASSERT_TRUE (!store->init_error ());
 
 	nano::endpoint_key endpoint (boost::asio::ip::address_v6::any ().to_bytes (), 100);
 	{
@@ -1228,7 +1223,7 @@ TEST (block_store, online_weight)
 {
 	nano::logger logger;
 	auto store = nano::make_store (logger, nano::unique_path (), nano::dev::constants);
-	ASSERT_FALSE (store->init_error ());
+
 	{
 		auto transaction (store->tx_begin_write ());
 		ASSERT_EQ (0, store->online_weight.count (transaction));
@@ -1263,7 +1258,6 @@ TEST (block_store, pruned_blocks)
 {
 	nano::logger logger;
 	auto store = nano::make_store (logger, nano::unique_path (), nano::dev::constants);
-	ASSERT_TRUE (!store->init_error ());
 
 	nano::keypair key1;
 	nano::block_builder builder;
@@ -1535,7 +1529,7 @@ TEST (mdb_block_store, upgrade_backup)
 	// Now do the upgrade and confirm that backup is saved
 	nano::logger logger;
 	nano::store::lmdb::component store (logger, path, nano::dev::constants, nano::txn_tracking_config{}, std::chrono::seconds (5), nano::lmdb_config{}, true);
-	ASSERT_FALSE (store.init_error ());
+
 	auto transaction (store.tx_begin_read ());
 	ASSERT_LT (14, store.version.get (transaction));
 	ASSERT_NE (get_backup_path ().string (), dir.string ());
@@ -1621,7 +1615,6 @@ TEST (block_store, incompatible_version)
 	nano::logger logger;
 	{
 		auto store = nano::make_store (logger, path, nano::dev::constants);
-		ASSERT_FALSE (store->init_error ());
 
 		// Put version to an unreachable number so that it should always be incompatible
 		auto transaction (store->tx_begin_write ());
@@ -1631,7 +1624,6 @@ TEST (block_store, incompatible_version)
 	// Now try and read it, should give an error
 	{
 		auto store = nano::make_store (logger, path, nano::dev::constants, true);
-		ASSERT_TRUE (store->init_error ());
 	}
 }
 
@@ -1639,7 +1631,6 @@ TEST (block_store, reset_renew_existing_transaction)
 {
 	nano::logger logger;
 	auto store = nano::make_store (logger, nano::unique_path (), nano::dev::constants);
-	ASSERT_TRUE (!store->init_error ());
 
 	nano::keypair key1;
 	nano::block_builder builder;
@@ -1709,7 +1700,7 @@ TEST (rocksdb_block_store, tombstone_count)
 	nano::test::system system;
 	nano::logger logger;
 	auto store = std::make_unique<nano::store::rocksdb::component> (logger, nano::unique_path () / "rocksdb", nano::dev::constants);
-	ASSERT_TRUE (!store->init_error ());
+
 	nano::block_builder builder;
 	auto block = builder
 				 .send ()

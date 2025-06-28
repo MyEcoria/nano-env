@@ -116,6 +116,8 @@ public:
 
 			nano::thread_runner runner (io_ctx, logger, config.node.io_threads, nano::thread_role::name::io_daemon);
 
+			try
+			{
 			std::shared_ptr<nano::node> node;
 			std::shared_ptr<nano_qt::wallet> gui;
 			nano::set_application_icon (application);
@@ -129,8 +131,6 @@ public:
 			}
 			nano::work_pool work{ config.node.network_params.network, config.node.work_threads, config.node.pow_sleep_interval, opencl_work_func };
 			node = std::make_shared<nano::node> (io_ctx, data_path, config.node, work, flags);
-			if (!node->init_error ())
-			{
 				auto wallet (node->wallets.open (wallet_config.wallet));
 				if (wallet == nullptr)
 				{
@@ -220,10 +220,10 @@ public:
 				result = QApplication::exec ();
 				runner.join ();
 			}
-			else
+			catch (std::exception const & e)
 			{
 				splash->hide ();
-				show_error ("Error initializing node");
+				show_error ("Error initializing node: " + std::string (e.what ()));
 			}
 			write_wallet_config (wallet_config, data_path);
 		}

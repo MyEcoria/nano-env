@@ -88,8 +88,6 @@ namespace store
 		virtual void serialize_mdb_tracker (::boost::property_tree::ptree &, std::chrono::milliseconds, std::chrono::milliseconds){};
 		virtual void serialize_memory_stats (::boost::property_tree::ptree &) = 0;
 
-		virtual bool init_error () const = 0;
-
 		/** Start read-write transaction */
 		virtual write_transaction tx_begin_write () = 0;
 

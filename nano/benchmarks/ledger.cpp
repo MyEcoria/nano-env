@@ -23,11 +23,6 @@ static void BM_ledger_iterate_accounts (benchmark::State & state)
 	auto store_impl{ nano::make_store (logger, application_path, network_params.ledger) };
 	auto & store{ *store_impl };
 
-	if (store.init_error ())
-	{
-		state.SkipWithError ("Store initialization failed. Make sure ledger files are present in the default location.");
-	}
-
 	auto ledger_impl{ std::make_unique<nano::ledger> (store, network_params.ledger, stats, logger, nano::generate_cache_flags::all_disabled ()) };
 	auto & ledger{ *ledger_impl };
 
@@ -70,11 +65,6 @@ static void BM_store_iterate_accounts (benchmark::State & state)
 
 	auto store_impl{ nano::make_store (logger, application_path, network_params.ledger) };
 	auto & store{ *store_impl };
-
-	if (store.init_error ())
-	{
-		state.SkipWithError ("Store initialization failed. Make sure ledger files are present in the default location.");
-	}
 
 	auto transaction = store.tx_begin_read ();
 	nano::account current{ 0 };

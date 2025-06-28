@@ -1922,11 +1922,10 @@ auto nano::wallet_store::end (store::transaction const & transaction_a) -> itera
 nano::mdb_wallets_store::mdb_wallets_store (std::filesystem::path const & path_a, nano::lmdb_config const & lmdb_config_a) :
 	environment (error, path_a, nano::store::lmdb::env::options::make ().set_config (lmdb_config_a).override_config_sync (nano::lmdb_config::sync_strategy::always).override_config_map_size (1ULL * 1024 * 1024 * 1024))
 {
-}
-
-bool nano::mdb_wallets_store::init_error () const
-{
-	return error;
+	if (error)
+	{
+		throw std::runtime_error ("Failed to initialize wallet store: " + path_a.string ());
+	}
 }
 
 nano::container_info nano::wallets::container_info () const

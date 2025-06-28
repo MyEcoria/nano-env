@@ -100,7 +100,7 @@ nano::node::node (std::shared_ptr<boost::asio::io_context> io_ctx_a, std::filesy
 	store{ *store_impl },
 	wallets_store_impl{ std::make_unique<nano::mdb_wallets_store> (application_path_a / "wallets.ldb", config_a.lmdb_config) },
 	wallets_store{ *wallets_store_impl },
-	wallets_impl{ std::make_unique<nano::wallets> (wallets_store.init_error (), *this) },
+	wallets_impl{ std::make_unique<nano::wallets> (false, *this) },
 	wallets{ *wallets_impl },
 	ledger_impl{ std::make_unique<nano::ledger> (store, network_params.ledger, stats, logger, flags_a.generate_cache, config_a.representative_vote_weight_minimum.number ()) },
 	ledger{ *ledger_impl },
@@ -287,8 +287,6 @@ nano::node::node (std::shared_ptr<boost::asio::io_context> io_ctx_a, std::filesy
 		}
 	});
 
-	if (!init_error ())
-	{
 		wallets.observer = [this] (bool active) {
 			observers.wallet.notify (active);
 		};
@@ -431,11 +429,6 @@ nano::node::node (std::shared_ptr<boost::asio::io_context> io_ctx_a, std::filesy
 				});
 			}
 		});
-	}
-	else
-	{
-		logger.error (nano::log::type::node, "Failed to initialize node");
-	}
 
 	node_initialized_latch.count_down ();
 }
@@ -883,10 +876,6 @@ int nano::node::store_version ()
 	return store.version.get (transaction);
 }
 
-bool nano::node::init_error () const
-{
-	return store.init_error () || wallets_store.init_error ();
-}
 
 std::pair<uint64_t, std::unordered_map<nano::account, nano::uint128_t>> nano::node::get_bootstrap_weights () const
 {

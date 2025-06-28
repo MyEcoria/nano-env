@@ -12,6 +12,8 @@
 #include <boost/polymorphic_cast.hpp>
 #include <boost/property_tree/ptree.hpp>
 
+#include <stdexcept>
+
 #include <rocksdb/merge_operator.h>
 #include <rocksdb/slice.h>
 #include <rocksdb/slice_transform.h>
@@ -74,12 +76,11 @@ nano::store::rocksdb::component::component (nano::logger & logger_a, std::filesy
 	boost::system::error_code error_mkdir, error_chmod;
 	std::filesystem::create_directories (path_a, error_mkdir);
 	nano::set_secure_perm_directory (path_a, error_chmod);
-	error = static_cast<bool> (error_mkdir);
 
-	if (error)
+	if (error_mkdir)
 	{
 		logger.critical (nano::log::type::rocksdb, "Failed to create database directory: {}", path_a.string ());
-		return;
+		throw std::runtime_error ("Failed to create database directory: " + path_a.string ());
 	}
 
 	logger.info (nano::log::type::rocksdb, "Initializing ledger store: {}", database_path.string ());
@@ -94,7 +95,14 @@ nano::store::rocksdb::component::component (nano::logger & logger_a, std::filesy
 	// The only certain column family is "meta" which contains the DB version info.
 	// RocksDB requires this operation to be in read-only mode.
 	auto is_fresh_db = false;
-	open (is_fresh_db, path_a, true, options, get_single_column_family ("meta"));
+	try
+	{
+		open (path_a, true, options, get_single_column_family ("meta"));
+	}
+	catch (std::runtime_error const &)
+	{
+		is_fresh_db = true;
+	}
 
 	auto is_fully_upgraded = false;
 	if (!is_fresh_db)
@@ -104,16 +112,12 @@ nano::store::rocksdb::component::component (nano::logger & logger_a, std::filesy
 		if (version_l > version_current)
 		{
 			logger.critical (nano::log::type::rocksdb, "The version of the ledger ({}) is too high for this node", version_l);
-
-			error = true;
-			return;
+			throw std::runtime_error ("Ledger version " + std::to_string (version_l) + " is too high for this node");
 		}
 		else if (version_l < version_minimum)
 		{
 			logger.critical (nano::log::type::rocksdb, "The version of the ledger ({}) is lower than the minimum ({}) which is supported for upgrades. Either upgrade a node first or delete the ledger.", version_l, version_minimum);
-
-			error = true;
-			return;
+			throw std::runtime_error ("Ledger version " + std::to_string (version_l) + " is lower than minimum supported version " + std::to_string (version_minimum));
 		}
 		is_fully_upgraded = (version_l == version_current);
 	}
@@ -127,7 +131,7 @@ nano::store::rocksdb::component::component (nano::logger & logger_a, std::filesy
 
 	if (is_fully_upgraded)
 	{
-		open (error, path_a, (mode == nano::store::open_mode::read_only), options, create_column_families ());
+		open (path_a, (mode == nano::store::open_mode::read_only), options, create_column_families ());
 		return;
 	}
 
@@ -136,29 +140,22 @@ nano::store::rocksdb::component::component (nano::logger & logger_a, std::filesy
 		// Either following cases cannot run in read-only mode:
 		// a) there is no database yet, the access needs to be in write mode for it to be created;
 		// b) it will upgrade, and it is not possible to do it in read-only mode.
-		error = true;
-		return;
+		throw std::runtime_error ("Database requires upgrade but was opened in read-only mode");
 	}
 
 	if (is_fresh_db)
 	{
-		open (error, path_a, (mode == nano::store::open_mode::read_only), options, create_column_families ());
-		if (!error)
-		{
-			version.put (tx_begin_write (), version_current); // It is fresh, someone needs to tell it its version.
-		}
+		open (path_a, (mode == nano::store::open_mode::read_only), options, create_column_families ());
+		version.put (tx_begin_write (), version_current); // It is fresh, someone needs to tell it its version.
 		return;
 	}
 
 	// The database is not upgraded, and it may not be compatible with the current column family set.
-	open (error, path_a, (mode == nano::store::open_mode::read_only), options, get_current_column_families (path_a.string (), options));
-	if (!error)
-	{
-		logger.info (nano::log::type::rocksdb, "Upgrade in progress...");
+	open (path_a, (mode == nano::store::open_mode::read_only), options, get_current_column_families (path_a.string (), options));
+	logger.info (nano::log::type::rocksdb, "Upgrade in progress...");
 
-		auto transaction = tx_begin_write ();
-		error |= do_upgrades (transaction);
-	}
+	auto transaction = tx_begin_write ();
+	do_upgrades (transaction);
 }
 
 std::unordered_map<char const *, nano::tables> nano::store::rocksdb::component::create_cf_name_table_map () const
@@ -180,7 +177,7 @@ std::unordered_map<char const *, nano::tables> nano::store::rocksdb::component::
 	return map;
 }
 
-void nano::store::rocksdb::component::open (bool & error_a, std::filesystem::path const & path_a, bool open_read_only_a, ::rocksdb::Options const & options_a, std::vector<::rocksdb::ColumnFamilyDescriptor> column_families)
+void nano::store::rocksdb::component::open (std::filesystem::path const & path_a, bool open_read_only_a, ::rocksdb::Options const & options_a, std::vector<::rocksdb::ColumnFamilyDescriptor> column_families)
 {
 	//	auto options = get_db_options ();
 	::rocksdb::Status s;
@@ -207,18 +204,20 @@ void nano::store::rocksdb::component::open (bool & error_a, std::filesystem::pat
 		handles[i].reset (handles_l[i]);
 	}
 
-	// Assign handles to supplied
-	error_a |= !s.ok ();
+	// Check for errors
+	if (!s.ok ())
+	{
+		throw std::runtime_error ("Failed to open RocksDB: " + s.ToString ());
+	}
 }
 
-bool nano::store::rocksdb::component::do_upgrades (store::write_transaction & transaction)
+void nano::store::rocksdb::component::do_upgrades (store::write_transaction & transaction)
 {
-	auto error (false);
 	auto version_l = version.get (transaction);
 	if (version_l < version_minimum)
 	{
 		logger.critical (nano::log::type::rocksdb, "The version of the ledger ({}) is lower than the minimum ({}) which is supported for upgrades. Either upgrade a node first or delete the ledger.", version_l, version_minimum);
-		return true;
+		throw std::runtime_error ("Ledger version " + std::to_string (version_l) + " is lower than minimum supported version " + std::to_string (version_minimum));
 	}
 	switch (version_l)
 	{
@@ -235,10 +234,8 @@ bool nano::store::rocksdb::component::do_upgrades (store::write_transaction & tr
 			break;
 		default:
 			logger.critical (nano::log::type::rocksdb, "The version of the ledger ({}) is too high for this node", version_l);
-			error = true;
-			break;
+			throw std::runtime_error ("Ledger version " + std::to_string (version_l) + " is too high for this node");
 	}
-	return error;
 }
 
 void nano::store::rocksdb::component::upgrade_v21_to_v22 (store::write_transaction & transaction)
@@ -877,8 +874,15 @@ bool nano::store::rocksdb::component::copy_db (std::filesystem::path const & des
 	// Open it so that it flushes all WAL files
 	if (status.ok ())
 	{
-		nano::store::rocksdb::component rocksdb_store{ logger, destination_path.string (), constants, rocksdb_config };
-		return !rocksdb_store.init_error ();
+		try
+		{
+			nano::store::rocksdb::component rocksdb_store{ logger, destination_path.string (), constants, rocksdb_config };
+			return true;
+		}
+		catch (std::exception const &)
+		{
+			return false;
+		}
 	}
 	return false;
 }
@@ -886,11 +890,6 @@ bool nano::store::rocksdb::component::copy_db (std::filesystem::path const & des
 void nano::store::rocksdb::component::rebuild_db (store::write_transaction const & transaction_a)
 {
 	// Not available for RocksDB
-}
-
-bool nano::store::rocksdb::component::init_error () const
-{
-	return error;
 }
 
 void nano::store::rocksdb::component::serialize_memory_stats (boost::property_tree::ptree & json)
