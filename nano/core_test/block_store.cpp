@@ -313,7 +313,6 @@ TEST (block_store, pending_iterator)
 {
 	nano::logger logger;
 	auto store = nano::make_store (logger, nano::unique_path (), nano::dev::constants);
-
 	auto transaction (store->tx_begin_write ());
 	ASSERT_EQ (store->pending.end (transaction), store->pending.begin (transaction));
 	store->pending.put (transaction, nano::pending_key (1, 2), { 2, 3, nano::epoch::epoch_1 });
@@ -381,7 +380,6 @@ TEST (block_store, genesis)
 {
 	nano::logger logger;
 	auto store = nano::make_store (logger, nano::unique_path (), nano::dev::constants);
-
 	auto transaction (store->tx_begin_write ());
 	store->initialize (transaction, nano::dev::constants);
 	nano::account_info info;
@@ -408,7 +406,6 @@ TEST (block_store, empty_accounts)
 {
 	nano::logger logger;
 	auto store = nano::make_store (logger, nano::unique_path (), nano::dev::constants);
-
 	auto transaction (store->tx_begin_read ());
 	auto begin (store->account.begin (transaction));
 	auto end (store->account.end (transaction));
@@ -807,7 +804,6 @@ TEST (block_store, frontier)
 {
 	nano::logger logger;
 	auto store = nano::make_store (logger, nano::unique_path (), nano::dev::constants);
-
 	auto transaction (store->tx_begin_write ());
 	nano::block_hash hash (100);
 	nano::account account (200);
@@ -849,7 +845,6 @@ TEST (block_store, block_count)
 {
 	nano::logger logger;
 	auto store = nano::make_store (logger, nano::unique_path (), nano::dev::constants);
-
 	{
 		auto transaction (store->tx_begin_write ());
 		ASSERT_EQ (0, store->block.count (transaction));
@@ -874,7 +869,6 @@ TEST (block_store, account_count)
 {
 	nano::logger logger;
 	auto store = nano::make_store (logger, nano::unique_path (), nano::dev::constants);
-
 	{
 		auto transaction (store->tx_begin_write ());
 		ASSERT_EQ (0, store->account.count (transaction));
@@ -889,7 +883,6 @@ TEST (block_store, cemented_count_cache)
 {
 	nano::logger logger;
 	auto store = nano::make_store (logger, nano::unique_path (), nano::dev::constants);
-
 	nano::stats stats{ logger };
 	nano::ledger ledger (*store, nano::dev::constants, stats, logger);
 	ASSERT_EQ (1, ledger.cemented_count ());
@@ -1223,7 +1216,6 @@ TEST (block_store, online_weight)
 {
 	nano::logger logger;
 	auto store = nano::make_store (logger, nano::unique_path (), nano::dev::constants);
-
 	{
 		auto transaction (store->tx_begin_write ());
 		ASSERT_EQ (0, store->online_weight.count (transaction));

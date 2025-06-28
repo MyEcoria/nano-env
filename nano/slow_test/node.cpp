@@ -101,7 +101,6 @@ TEST (system, receive_while_synchronizing)
 		system.generate_mass_activity (count, *system.nodes[0]);
 		nano::keypair key;
 		auto node1 (std::make_shared<nano::node> (system.io_ctx, system.get_available_port (), nano::unique_path (), system.work));
-
 		auto wallet (node1->wallets.create (1));
 		wallet->insert_adhoc (nano::dev::genesis_key.prv); // For voting
 		ASSERT_EQ (key.pub, wallet->insert_adhoc (key.prv));
@@ -130,7 +129,6 @@ TEST (ledger, deep_account_compute)
 {
 	nano::logger logger;
 	auto store = nano::make_store (logger, nano::unique_path (), nano::dev::constants);
-
 	nano::stats stats{ logger };
 	nano::ledger ledger (*store, nano::dev::constants, stats, logger);
 	auto transaction = ledger.tx_begin_write ();

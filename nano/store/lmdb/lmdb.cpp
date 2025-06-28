@@ -51,81 +51,80 @@ nano::store::lmdb::component::component (nano::logger & logger_a, std::filesyste
 	mdb_txn_tracker (logger_a, txn_tracking_config_a, block_processor_batch_max_time_a),
 	txn_tracking_enabled (txn_tracking_config_a.enable)
 {
-	if (!error)
+	if (error)
 	{
-		logger.info (nano::log::type::lmdb, "Initializing ledger store: {}", database_path.string ());
+		throw std::runtime_error ("Failed to initialize LMDB store: " + database_path.string ());
+	}
 
-		debug_assert (path_a.filename () == "data.ldb");
+	logger.info (nano::log::type::lmdb, "Initializing ledger store: {}", database_path.string ());
 
-		auto is_fully_upgraded (false);
-		auto is_fresh_db (false);
+	debug_assert (path_a.filename () == "data.ldb");
+
+	auto is_fully_upgraded (false);
+	auto is_fresh_db (false);
+	{
+		auto transaction (tx_begin_read ());
+		auto err = mdb_dbi_open (env.tx (transaction), "meta", 0, &version_store.meta_handle);
+		is_fresh_db = err != MDB_SUCCESS;
+		if (err == MDB_SUCCESS)
 		{
-			auto transaction (tx_begin_read ());
-			auto err = mdb_dbi_open (env.tx (transaction), "meta", 0, &version_store.meta_handle);
-			is_fresh_db = err != MDB_SUCCESS;
-			if (err == MDB_SUCCESS)
-			{
-				is_fully_upgraded = (version.get (transaction) == version_current);
-				mdb_dbi_close (env, version_store.meta_handle);
-			}
+			is_fully_upgraded = (version.get (transaction) == version_current);
+			mdb_dbi_close (env, version_store.meta_handle);
+		}
+	}
+
+	// Only open a write lock when upgrades are needed. This is because CLI commands
+	// open inactive nodes which can otherwise be locked here if there is a long write
+	// (can be a few minutes with the --fast_bootstrap flag for instance)
+	if (!is_fully_upgraded)
+	{
+		if (mode == nano::store::open_mode::read_only)
+		{
+			// Either following cases cannot run in read-only mode:
+			// a) there is no database yet, the access needs to be in write mode for it to be created;
+			// b) it will upgrade, and it is not possible to do it in read-only mode.
+			throw std::runtime_error ("Database requires upgrade but was opened in read-only mode");
 		}
 
-		// Only open a write lock when upgrades are needed. This is because CLI commands
-		// open inactive nodes which can otherwise be locked here if there is a long write
-		// (can be a few minutes with the --fast_bootstrap flag for instance)
-		if (!is_fully_upgraded)
+		if (!is_fresh_db)
 		{
-			if (mode == nano::store::open_mode::read_only)
-			{
-				// Either following cases cannot run in read-only mode:
-				// a) there is no database yet, the access needs to be in write mode for it to be created;
-				// b) it will upgrade, and it is not possible to do it in read-only mode.
-				throw std::runtime_error ("Database requires upgrade but was opened in read-only mode");
-			}
+			logger.info (nano::log::type::lmdb, "Upgrade in progress...");
 
-			if (!is_fresh_db)
+			if (backup_before_upgrade_a)
 			{
-				logger.info (nano::log::type::lmdb, "Upgrade in progress...");
-
-				if (backup_before_upgrade_a)
-				{
-					create_backup_file (env, path_a, logger);
-				}
-			}
-			auto needs_vacuuming = false;
-			{
-				auto transaction (tx_begin_write ());
-				open_databases (transaction, MDB_CREATE);
-				do_upgrades (transaction, constants, needs_vacuuming);
-				logger.info (nano::log::type::lmdb, "Database upgraded successfully to version {}", version_current);
-			}
-
-			if (needs_vacuuming)
-			{
-				logger.info (nano::log::type::lmdb, "Ledger vacuum in progress...");
-
-				auto vacuum_success = vacuum_after_upgrade (path_a, lmdb_config_a);
-				if (vacuum_success)
-				{
-					logger.info (nano::log::type::lmdb, "Ledger vacuum completed");
-				}
-				else
-				{
-					logger.error (nano::log::type::lmdb, "Ledger vacuum failed");
-					logger.error (nano::log::type::lmdb, "(Optional) Please ensure enough disk space is available for a copy of the database and try to vacuum after shutting down the node");
-				}
+				create_backup_file (env, path_a, logger);
 			}
 		}
-		else
+		auto needs_vacuuming = false;
 		{
-			auto transaction (tx_begin_read ());
-			open_databases (transaction, 0);
+			auto transaction (tx_begin_write ());
+			open_databases (transaction, MDB_CREATE);
+			do_upgrades (transaction, constants, needs_vacuuming);
+			logger.info (nano::log::type::lmdb, "Database upgraded successfully to version {}", version_current);
+		}
+
+		if (needs_vacuuming)
+		{
+			logger.info (nano::log::type::lmdb, "Ledger vacuum in progress...");
+
+			auto vacuum_success = vacuum_after_upgrade (path_a, lmdb_config_a);
+			if (vacuum_success)
+			{
+				logger.info (nano::log::type::lmdb, "Ledger vacuum completed");
+			}
+			else
+			{
+				logger.error (nano::log::type::lmdb, "Ledger vacuum failed");
+				logger.error (nano::log::type::lmdb, "(Optional) Please ensure enough disk space is available for a copy of the database and try to vacuum after shutting down the node");
+			}
 		}
 	}
 	else
 	{
-		throw std::runtime_error ("Failed to initialize LMDB store: " + database_path.string ());
+		auto transaction (tx_begin_read ());
+		open_databases (transaction, 0);
 	}
+}
 }
 
 bool nano::store::lmdb::component::vacuum_after_upgrade (std::filesystem::path const & path_a, nano::lmdb_config const & lmdb_config_a)
