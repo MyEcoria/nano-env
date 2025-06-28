@@ -47,15 +47,10 @@ nano::store::lmdb::component::component (nano::logger & logger_a, std::filesyste
 	database_path{ path_a },
 	mode{ mode_a },
 	logger{ logger_a },
-	env (error, path_a, nano::store::lmdb::env::options::make ().set_config (lmdb_config_a).set_use_no_mem_init (true).set_read_only (mode_a == nano::store::open_mode::read_only)),
+	env (path_a, nano::store::lmdb::env::options::make ().set_config (lmdb_config_a).set_use_no_mem_init (true).set_read_only (mode_a == nano::store::open_mode::read_only)),
 	mdb_txn_tracker (logger_a, txn_tracking_config_a, block_processor_batch_max_time_a),
 	txn_tracking_enabled (txn_tracking_config_a.enable)
 {
-	if (error)
-	{
-		throw std::runtime_error ("Failed to initialize LMDB store: " + database_path.string ());
-	}
-
 	logger.info (nano::log::type::lmdb, "Initializing ledger store: {}", database_path.string ());
 
 	debug_assert (path_a.filename () == "data.ldb");
@@ -125,7 +120,6 @@ nano::store::lmdb::component::component (nano::logger & logger_a, std::filesyste
 		open_databases (transaction, 0);
 	}
 }
-}
 
 bool nano::store::lmdb::component::vacuum_after_upgrade (std::filesystem::path const & path_a, nano::lmdb_config const & lmdb_config_a)
 {
@@ -147,16 +141,9 @@ bool nano::store::lmdb::component::vacuum_after_upgrade (std::filesystem::path c
 		auto options = nano::store::lmdb::env::options::make ()
 					   .set_config (lmdb_config_a)
 					   .set_use_no_mem_init (true);
-		env.init (error, path_a, options);
-		if (!error)
-		{
-			auto transaction (tx_begin_read ());
-			open_databases (transaction, 0);
-		}
-		else
-		{
-			throw std::runtime_error ("Failed to reinitialize LMDB store after vacuum: " + path_a.string ());
-		}
+		env.init (path_a, options);
+		auto transaction (tx_begin_read ());
+		open_databases (transaction, 0);
 	}
 	else
 	{
