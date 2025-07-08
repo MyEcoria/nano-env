@@ -612,8 +612,7 @@ TEST (block_store, latest_find)
 	ASSERT_EQ (second, find3);
 }
 
-namespace nano::store::lmdb
-{
+// TODO: Move to lmdb specific test file
 TEST (mdb_block_store, supported_version_upgrades)
 {
 	if (nano::rocksdb_config::using_rocksdb_in_tests ())
@@ -636,7 +635,7 @@ TEST (mdb_block_store, supported_version_upgrades)
 
 	// Upgrade should fail
 	{
-		nano::store::lmdb::component store (logger, path, nano::dev::constants);
+		ASSERT_THROW (nano::store::lmdb::component store (logger, path, nano::dev::constants), std::runtime_error);
 	}
 
 	auto path1 (nano::unique_path () / "data.ldb");
@@ -652,11 +651,11 @@ TEST (mdb_block_store, supported_version_upgrades)
 
 	// Upgrade should work
 	{
-		nano::store::lmdb::component store (logger, path1, nano::dev::constants);
+		ASSERT_NO_THROW (nano::store::lmdb::component store (logger, path1, nano::dev::constants));
 	}
 }
-}
 
+// TODO: Move to lmdb specific test file
 TEST (mdb_block_store, bad_path)
 {
 	if (nano::rocksdb_config::using_rocksdb_in_tests ())
@@ -665,21 +664,13 @@ TEST (mdb_block_store, bad_path)
 		GTEST_SKIP ();
 	}
 	nano::logger logger;
-	try
+	auto path = nano::unique_path ();
+	path /= "data.ldb";
 	{
-		auto path = nano::unique_path ();
-		path /= "data.ldb";
-		{
-			std::ofstream stream (path.c_str ());
-		}
-		std::filesystem::permissions (path, std::filesystem::perms::none);
-		nano::store::lmdb::component store (logger, path, nano::dev::constants);
+		std::ofstream stream (path.c_str ());
 	}
-	catch (std::runtime_error &)
-	{
-		return;
-	}
-	ASSERT_TRUE (false);
+	std::filesystem::permissions (path, std::filesystem::perms::none);
+	ASSERT_THROW (nano::store::lmdb::component store (logger, path, nano::dev::constants), std::runtime_error);
 }
 
 TEST (block_store, DISABLED_already_open) // File can be shared
@@ -1614,9 +1605,7 @@ TEST (block_store, incompatible_version)
 	}
 
 	// Now try and read it, should give an error
-	{
-		auto store = nano::make_store (logger, path, nano::dev::constants, true);
-	}
+	ASSERT_THROW (nano::make_store (logger, path, nano::dev::constants, true), std::runtime_error);
 }
 
 TEST (block_store, reset_renew_existing_transaction)

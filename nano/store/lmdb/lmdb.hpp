@@ -136,10 +136,6 @@ private:
 		uint64_t after_v0{ 0 };
 		uint64_t after_v1{ 0 };
 	};
-
-	friend class mdb_block_store_supported_version_upgrades_Test;
-	friend class mdb_block_store_upgrade_v21_v22_Test;
-	friend class block_store_DISABLED_change_dupsort_Test;
 };
 
 bool success (int status);
