@@ -42,16 +42,7 @@ nano::ledger::ledger (nano::store::component & store_a, nano::ledger_constants &
 	any{ *any_impl },
 	confirmed{ *confirmed_impl }
 {
-	// TODO: Throw on error
-	if (!store.init_error ())
-	{
-		initialize (generate_cache_flags_a);
-	}
-	else
-	{
-		logger.error (nano::log::type::ledger, "Ledger initialization failed, store initialization error");
-		throw std::runtime_error ("Ledger initialization failed, store initialization error");
-	}
+	initialize (generate_cache_flags_a);
 }
 
 nano::ledger::~ledger ()
@@ -841,12 +832,11 @@ bool nano::ledger::migrate_lmdb_to_rocksdb (std::filesystem::path const & data_p
 	auto error (false);
 
 	// Open rocksdb database
-	nano::node_config node_config;
-	node_config.database_backend = database_backend::rocksdb;
-	auto rocksdb_store = nano::make_store (logger, data_path_a, nano::dev::constants, false, true, node_config);
-
-	if (!rocksdb_store->init_error ())
+	try
 	{
+		nano::node_config node_config;
+		node_config.database_backend = database_backend::rocksdb;
+		auto rocksdb_store = nano::make_store (logger, data_path_a, nano::dev::constants, false, true, node_config);
 		auto table_size = store.count (store.tx_begin_read (), tables::blocks);
 		logger.info (nano::log::type::ledger, "Step 1 of 7: Converting {} entries from blocks table", table_size);
 		std::atomic<std::size_t> count = 0;
@@ -1028,7 +1018,7 @@ bool nano::ledger::migrate_lmdb_to_rocksdb (std::filesystem::path const & data_p
 		logger.info (nano::log::type::ledger, "Migration completed. Make sure to set `database_backend` under [node] to 'rocksdb' in config-node.toml");
 		logger.info (nano::log::type::ledger, "After confirming correct node operation, the data.ldb file can be deleted if no longer required");
 	}
-	else
+	catch (std::exception const &)
 	{
 		error = true;
 	}

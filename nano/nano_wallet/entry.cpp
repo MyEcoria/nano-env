@@ -116,21 +116,21 @@ public:
 
 			nano::thread_runner runner (io_ctx, logger, config.node.io_threads, nano::thread_role::name::io_daemon);
 
-			std::shared_ptr<nano::node> node;
-			std::shared_ptr<nano_qt::wallet> gui;
-			nano::set_application_icon (application);
-			auto opencl = nano::opencl_work::create (config.opencl_enable, config.opencl, logger, config.node.network_params.work);
-			nano::opencl_work_func_t opencl_work_func;
-			if (opencl)
+			try
 			{
-				opencl_work_func = [&opencl] (nano::work_version const version_a, nano::root const & root_a, uint64_t difficulty_a, std::atomic<int> &) {
-					return opencl->generate_work (version_a, root_a, difficulty_a);
-				};
-			}
-			nano::work_pool work{ config.node.network_params.network, config.node.work_threads, config.node.pow_sleep_interval, opencl_work_func };
-			node = std::make_shared<nano::node> (io_ctx, data_path, config.node, work, flags);
-			if (!node->init_error ())
-			{
+				std::shared_ptr<nano::node> node;
+				std::shared_ptr<nano_qt::wallet> gui;
+				nano::set_application_icon (application);
+				auto opencl = nano::opencl_work::create (config.opencl_enable, config.opencl, logger, config.node.network_params.work);
+				nano::opencl_work_func_t opencl_work_func;
+				if (opencl)
+				{
+					opencl_work_func = [&opencl] (nano::work_version const version_a, nano::root const & root_a, uint64_t difficulty_a, std::atomic<int> &) {
+						return opencl->generate_work (version_a, root_a, difficulty_a);
+					};
+				}
+				nano::work_pool work{ config.node.network_params.network, config.node.work_threads, config.node.pow_sleep_interval, opencl_work_func };
+				node = std::make_shared<nano::node> (io_ctx, data_path, config.node, work, flags);
 				auto wallet (node->wallets.open (wallet_config.wallet));
 				if (wallet == nullptr)
 				{
@@ -220,10 +220,10 @@ public:
 				result = QApplication::exec ();
 				runner.join ();
 			}
-			else
+			catch (std::exception const & e)
 			{
 				splash->hide ();
-				show_error ("Error initializing node");
+				show_error ("Error initializing node: " + std::string (e.what ()));
 			}
 			write_wallet_config (wallet_config, data_path);
 		}

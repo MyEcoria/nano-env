@@ -34,7 +34,6 @@ namespace store
 	class component
 	{
 		friend class rocksdb_block_store_tombstone_count_Test;
-		friend class mdb_block_store_upgrade_v21_v22_Test;
 
 	public:
 		explicit component (
@@ -87,8 +86,6 @@ namespace store
 		/** Not applicable to all sub-classes */
 		virtual void serialize_mdb_tracker (::boost::property_tree::ptree &, std::chrono::milliseconds, std::chrono::milliseconds){};
 		virtual void serialize_memory_stats (::boost::property_tree::ptree &) = 0;
-
-		virtual bool init_error () const = 0;
 
 		/** Start read-write transaction */
 		virtual write_transaction tx_begin_write () = 0;

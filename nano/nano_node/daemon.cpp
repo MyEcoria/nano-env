@@ -121,98 +121,91 @@ void nano::daemon::run (std::filesystem::path const & data_path, nano::node_flag
 		}
 
 		auto node = std::make_shared<nano::node> (io_ctx, data_path, config.node, opencl_work, flags);
-		if (!node->init_error ())
+		// IO context runner should be started first and stopped last to allow asio handlers to execute during node start/stop
+		runner = std::make_unique<nano::thread_runner> (io_ctx, logger, node->config.io_threads, nano::thread_role::name::io_daemon);
+
+		node->start ();
+
+		std::atomic stopped{ false };
+
+		std::unique_ptr<nano::ipc::ipc_server> ipc_server = std::make_unique<nano::ipc::ipc_server> (*node, config.rpc);
+		std::unique_ptr<boost::process::child> rpc_process;
+		std::unique_ptr<nano::rpc_handler_interface> rpc_handler;
+		std::shared_ptr<nano::rpc> rpc;
+
+		if (config.rpc_enable)
 		{
-			// IO context runner should be started first and stopped last to allow asio handlers to execute during node start/stop
-			runner = std::make_unique<nano::thread_runner> (io_ctx, logger, node->config.io_threads, nano::thread_role::name::io_daemon);
-
-			node->start ();
-
-			std::atomic stopped{ false };
-
-			std::unique_ptr<nano::ipc::ipc_server> ipc_server = std::make_unique<nano::ipc::ipc_server> (*node, config.rpc);
-			std::unique_ptr<boost::process::child> rpc_process;
-			std::unique_ptr<nano::rpc_handler_interface> rpc_handler;
-			std::shared_ptr<nano::rpc> rpc;
-
-			if (config.rpc_enable)
+			// In process RPC
+			if (!config.rpc.child_process.enable)
 			{
-				// In process RPC
-				if (!config.rpc.child_process.enable)
+				auto stop_callback = [this, &stopped] () {
+					logger.warn (nano::log::type::daemon, "RPC stop request received, stopping...");
+					stopped = true;
+					stopped.notify_all ();
+				};
+
+				// Launch rpc in-process
+				nano::rpc_config rpc_config{ config.node.network_params.network };
+				if (auto error = nano::read_rpc_config_toml (data_path, rpc_config, flags.rpc_config_overrides))
 				{
-					auto stop_callback = [this, &stopped] () {
-						logger.warn (nano::log::type::daemon, "RPC stop request received, stopping...");
-						stopped = true;
-						stopped.notify_all ();
-					};
-
-					// Launch rpc in-process
-					nano::rpc_config rpc_config{ config.node.network_params.network };
-					if (auto error = nano::read_rpc_config_toml (data_path, rpc_config, flags.rpc_config_overrides))
-					{
-						logger.critical (nano::log::type::daemon, "Error deserializing RPC config: {}", error.get_message ());
-						std::exit (1);
-					}
-
-					rpc_handler = std::make_unique<nano::inprocess_rpc_handler> (*node, *ipc_server, config.rpc, stop_callback);
-					rpc = nano::get_rpc (io_ctx, rpc_config, *rpc_handler);
-					rpc->start ();
+					logger.critical (nano::log::type::daemon, "Error deserializing RPC config: {}", error.get_message ());
+					std::exit (1);
 				}
-				else
+
+				rpc_handler = std::make_unique<nano::inprocess_rpc_handler> (*node, *ipc_server, config.rpc, stop_callback);
+				rpc = nano::get_rpc (io_ctx, rpc_config, *rpc_handler);
+				rpc->start ();
+			}
+			else
+			{
+				// Spawn a child rpc process
+				if (!std::filesystem::exists (config.rpc.child_process.rpc_path))
 				{
-					// Spawn a child rpc process
-					if (!std::filesystem::exists (config.rpc.child_process.rpc_path))
-					{
-						throw std::runtime_error (std::string ("RPC is configured to spawn a new process however the file cannot be found at: ") + config.rpc.child_process.rpc_path);
-					}
-
-					logger.warn (nano::log::type::daemon, "RPC is configured to run in a separate process, this is experimental and is not recommended for production use. Please consider using the in-process RPC instead.");
-
-					std::string network{ node->network_params.network.get_current_network_as_string () };
-					rpc_process = std::make_unique<boost::process::child> (config.rpc.child_process.rpc_path, "--daemon", "--data_path", data_path.string (), "--network", network);
+					throw std::runtime_error (std::string ("RPC is configured to spawn a new process however the file cannot be found at: ") + config.rpc.child_process.rpc_path);
 				}
-				debug_assert (rpc || rpc_process);
+
+				logger.warn (nano::log::type::daemon, "RPC is configured to run in a separate process, this is experimental and is not recommended for production use. Please consider using the in-process RPC instead.");
+
+				std::string network{ node->network_params.network.get_current_network_as_string () };
+				rpc_process = std::make_unique<boost::process::child> (config.rpc.child_process.rpc_path, "--daemon", "--data_path", data_path.string (), "--network", network);
 			}
-
-			auto signal_handler = [this, &stopped] (int signum) {
-				logger.warn (nano::log::type::daemon, "Interrupt signal received ({}), stopping...", to_signal_name (signum));
-				stopped = true;
-				stopped.notify_all ();
-			};
-
-			nano::signal_manager sigman;
-			// keep trapping Ctrl-C to avoid a second Ctrl-C interrupting tasks started by the first
-			sigman.register_signal_handler (SIGINT, signal_handler, true);
-			// sigterm is less likely to come in bunches so only trap it once
-			sigman.register_signal_handler (SIGTERM, signal_handler, false);
-
-			// Keep running until stopped flag is set
-			stopped.wait (false);
-
-			logger.info (nano::log::type::daemon, "Stopping...");
-
-			if (rpc)
-			{
-				rpc->stop ();
-			}
-			ipc_server->stop ();
-			node->stop ();
-			io_ctx->stop ();
-			runner->join ();
-
-			if (rpc_process)
-			{
-				rpc_process->wait ();
-			}
+			debug_assert (rpc || rpc_process);
 		}
-		else
+
+		auto signal_handler = [this, &stopped] (int signum) {
+			logger.warn (nano::log::type::daemon, "Interrupt signal received ({}), stopping...", to_signal_name (signum));
+			stopped = true;
+			stopped.notify_all ();
+		};
+
+		nano::signal_manager sigman;
+		// keep trapping Ctrl-C to avoid a second Ctrl-C interrupting tasks started by the first
+		sigman.register_signal_handler (SIGINT, signal_handler, true);
+		// sigterm is less likely to come in bunches so only trap it once
+		sigman.register_signal_handler (SIGTERM, signal_handler, false);
+
+		// Keep running until stopped flag is set
+		stopped.wait (false);
+
+		logger.info (nano::log::type::daemon, "Stopping...");
+
+		if (rpc)
 		{
-			logger.critical (nano::log::type::daemon, "Error initializing node");
+			rpc->stop ();
+		}
+		ipc_server->stop ();
+		node->stop ();
+		io_ctx->stop ();
+		runner->join ();
+
+		if (rpc_process)
+		{
+			rpc_process->wait ();
 		}
 	}
-	catch (std::runtime_error const & e)
+	catch (std::exception const & ex)
 	{
-		logger.critical (nano::log::type::daemon, "Error while running node: {}", e.what ());
+		logger.critical (nano::log::type::daemon, "Error: {}", ex.what ());
 	}
 
 	logger.info (nano::log::type::daemon, "Stopped");

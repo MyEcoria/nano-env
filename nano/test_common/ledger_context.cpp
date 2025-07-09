@@ -9,7 +9,6 @@ nano::test::ledger_context::ledger_context (std::deque<std::shared_ptr<nano::blo
 	blocks_m{ blocks },
 	pool_m{ nano::dev::network_params.network, 1 }
 {
-	debug_assert (!store_m->init_error ());
 	auto tx = ledger_m.tx_begin_write ();
 	for (auto const & i : blocks_m)
 	{

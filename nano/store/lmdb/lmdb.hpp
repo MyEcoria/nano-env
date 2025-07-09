@@ -92,19 +92,18 @@ public:
 	bool copy_db (std::filesystem::path const & destination_file) override;
 	void rebuild_db (store::write_transaction const & transaction_a) override;
 
-	bool init_error () const override;
-
 	uint64_t count (store::transaction const &, MDB_dbi) const;
 
 	std::string error_string (int status) const override;
 
 private:
-	bool do_upgrades (store::write_transaction &, nano::ledger_constants & constants, bool &);
+	void do_upgrades (store::write_transaction &, nano::ledger_constants & constants, bool &);
 	void upgrade_v21_to_v22 (store::write_transaction &);
 	void upgrade_v22_to_v23 (store::write_transaction &);
 	void upgrade_v23_to_v24 (store::write_transaction &);
 
-	void open_databases (bool &, store::transaction const &, unsigned);
+	void open_databases (store::transaction const &, unsigned);
+	void open_table (store::transaction const &, char const * name, unsigned flags, MDB_dbi & handle);
 
 	int drop (store::write_transaction const & transaction_a, tables table_a) override;
 	int clear (store::write_transaction const & transaction_a, MDB_dbi handle_a);
@@ -137,10 +136,6 @@ private:
 		uint64_t after_v0{ 0 };
 		uint64_t after_v1{ 0 };
 	};
-
-	friend class mdb_block_store_supported_version_upgrades_Test;
-	friend class mdb_block_store_upgrade_v21_v22_Test;
-	friend class block_store_DISABLED_change_dupsort_Test;
 };
 
 bool success (int status);

@@ -11,7 +11,7 @@
 TEST (rep_weight_store, empty)
 {
 	auto store = nano::test::make_store ();
-	ASSERT_TRUE (!store->init_error ());
+
 	auto txn{ store->tx_begin_read () };
 	ASSERT_EQ (0, store->rep_weight.count (txn));
 }
@@ -19,7 +19,7 @@ TEST (rep_weight_store, empty)
 TEST (rep_weight_store, add_item)
 {
 	auto store = nano::test::make_store ();
-	ASSERT_TRUE (!store->init_error ());
+
 	auto txn{ store->tx_begin_write () };
 
 	nano::account representative{ 123 };
@@ -33,7 +33,7 @@ TEST (rep_weight_store, add_item)
 TEST (rep_weight_store, del)
 {
 	auto store = nano::test::make_store ();
-	ASSERT_TRUE (!store->init_error ());
+
 	auto txn{ store->tx_begin_write () };
 
 	store->rep_weight.put (txn, 1, 100);
@@ -49,7 +49,7 @@ TEST (rep_weight_store, del)
 TEST (rep_weight_store, for_each_par)
 {
 	auto store = nano::test::make_store ();
-	ASSERT_TRUE (!store->init_error ());
+
 	{
 		auto txn{ store->tx_begin_write () };
 		for (auto i = 0; i < 50; ++i)

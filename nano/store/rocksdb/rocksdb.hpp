@@ -86,12 +86,9 @@ public:
 
 	unsigned max_block_write_batch_num () const override;
 
-	bool init_error () const override;
-
 	std::string error_string (int status) const override;
 
 private:
-	bool error{ false };
 	std::filesystem::path const database_path;
 	nano::store::open_mode const mode;
 	nano::logger & logger;
@@ -131,9 +128,9 @@ private:
 	::rocksdb::ColumnFamilyHandle * table_to_column_family (tables table_a) const;
 	int clear (::rocksdb::ColumnFamilyHandle * column_family);
 
-	void open (bool & error_a, std::filesystem::path const & path_a, bool open_read_only_a, ::rocksdb::Options const & options_a, std::vector<::rocksdb::ColumnFamilyDescriptor> column_families);
+	void open (std::filesystem::path const & path_a, bool open_read_only_a, ::rocksdb::Options const & options_a, std::vector<::rocksdb::ColumnFamilyDescriptor> column_families);
 
-	bool do_upgrades (store::write_transaction &);
+	void do_upgrades (store::write_transaction &);
 	void upgrade_v21_to_v22 (store::write_transaction &);
 	void upgrade_v22_to_v23 (store::write_transaction &);
 	void upgrade_v23_to_v24 (store::write_transaction &);

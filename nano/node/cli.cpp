@@ -238,9 +238,9 @@ bool copy_database (std::filesystem::path const & data_path, boost::program_opti
 	auto node_flags = nano::inactive_node_flag_defaults ();
 	node_flags.read_only = !needs_to_write;
 	nano::update_flags (node_flags, vm);
-	nano::inactive_node node (data_path, node_flags);
-	if (!node.node->init_error ())
+	try
 	{
+		nano::inactive_node node (data_path, node_flags);
 		auto & store (node.node->store);
 		if (vm.count ("unchecked_clear"))
 		{
@@ -273,7 +273,7 @@ bool copy_database (std::filesystem::path const & data_path, boost::program_opti
 
 		success = node.node->copy_with_compaction (output_path);
 	}
-	else
+	catch (std::exception const &)
 	{
 		database_write_lock_error (ec);
 	}
@@ -496,20 +496,18 @@ std::error_code nano::handle_node_options (boost::program_options::variables_map
 		auto node_flags = nano::inactive_node_flag_defaults ();
 		node_flags.config_overrides.push_back ("node.rocksdb.enable=false");
 		nano::update_flags (node_flags, vm);
-		nano::inactive_node node (data_path, node_flags);
-		auto error (false);
-		if (!node.node->init_error ())
+		try
 		{
-			error = node.node->ledger.migrate_lmdb_to_rocksdb (data_path);
+			nano::inactive_node node (data_path, node_flags);
+			auto error = node.node->ledger.migrate_lmdb_to_rocksdb (data_path);
+			if (error)
+			{
+				std::cerr << "There was an error migrating" << std::endl;
+			}
 		}
-		else
+		catch (std::exception const & e)
 		{
-			error = true;
-		}
-
-		if (error)
-		{
-			std::cerr << "There was an error migrating" << std::endl;
+			std::cerr << "Error initializing node for migration: " << e.what () << std::endl;
 		}
 	}
 	else if (vm.count ("rollback"))
@@ -524,9 +522,9 @@ std::error_code nano::handle_node_options (boost::program_options::variables_map
 				node_flags.read_only = false;
 				nano::update_flags (node_flags, vm);
 
-				nano::inactive_node node (data_path, node_flags);
-				if (!node.node->init_error ())
+				try
 				{
+					nano::inactive_node node (data_path, node_flags);
 					auto transaction (node.node->ledger.tx_begin_write ());
 					auto block = node.node->ledger.any.block_get (transaction, block_hash);
 					if (block != nullptr)
@@ -560,7 +558,7 @@ std::error_code nano::handle_node_options (boost::program_options::variables_map
 						ec = nano::error_cli::invalid_arguments;
 					}
 				}
-				else
+				catch (std::exception const &)
 				{
 					database_write_lock_error (ec);
 				}
@@ -583,14 +581,14 @@ std::error_code nano::handle_node_options (boost::program_options::variables_map
 		auto node_flags = nano::inactive_node_flag_defaults ();
 		node_flags.read_only = false;
 		nano::update_flags (node_flags, vm);
-		nano::inactive_node node (data_path, node_flags);
-		if (!node.node->init_error ())
+		try
 		{
+			nano::inactive_node node (data_path, node_flags);
 			auto transaction (node.node->store.tx_begin_write ());
 			node.node->unchecked.clear ();
 			std::cout << "Unchecked blocks deleted" << std::endl;
 		}
-		else
+		catch (std::exception const &)
 		{
 			database_write_lock_error (ec);
 		}
@@ -601,14 +599,14 @@ std::error_code nano::handle_node_options (boost::program_options::variables_map
 		auto node_flags = nano::inactive_node_flag_defaults ();
 		node_flags.read_only = false;
 		nano::update_flags (node_flags, vm);
-		nano::inactive_node node (data_path, node_flags);
-		if (!node.node->init_error ())
+		try
 		{
+			nano::inactive_node node (data_path, node_flags);
 			auto transaction (node.node->wallets.tx_begin_write ());
 			node.node->wallets.clear_send_ids (transaction);
 			std::cout << "Send IDs deleted" << std::endl;
 		}
-		else
+		catch (std::exception const &)
 		{
 			database_write_lock_error (ec);
 		}
@@ -619,14 +617,14 @@ std::error_code nano::handle_node_options (boost::program_options::variables_map
 		auto node_flags = nano::inactive_node_flag_defaults ();
 		node_flags.read_only = false;
 		nano::update_flags (node_flags, vm);
-		nano::inactive_node node (data_path, node_flags);
-		if (!node.node->init_error ())
+		try
 		{
+			nano::inactive_node node (data_path, node_flags);
 			auto transaction (node.node->store.tx_begin_write ());
 			node.node->store.online_weight.clear (transaction);
 			std::cout << "Online weight records are removed" << std::endl;
 		}
-		else
+		catch (std::exception const &)
 		{
 			database_write_lock_error (ec);
 		}
@@ -637,14 +635,14 @@ std::error_code nano::handle_node_options (boost::program_options::variables_map
 		auto node_flags = nano::inactive_node_flag_defaults ();
 		node_flags.read_only = false;
 		nano::update_flags (node_flags, vm);
-		nano::inactive_node node (data_path, node_flags);
-		if (!node.node->init_error ())
+		try
 		{
+			nano::inactive_node node (data_path, node_flags);
 			auto transaction (node.node->store.tx_begin_write ());
 			node.node->store.peer.clear (transaction);
 			std::cout << "Database peers are removed" << std::endl;
 		}
-		else
+		catch (std::exception const &)
 		{
 			database_write_lock_error (ec);
 		}
@@ -655,9 +653,9 @@ std::error_code nano::handle_node_options (boost::program_options::variables_map
 		auto node_flags = nano::inactive_node_flag_defaults ();
 		node_flags.read_only = false;
 		nano::update_flags (node_flags, vm);
-		nano::inactive_node node (data_path, node_flags);
-		if (!node.node->init_error ())
+		try
 		{
+			nano::inactive_node node (data_path, node_flags);
 			if (vm.count ("account") == 1)
 			{
 				auto account_str = vm["account"].as<std::string> ();
@@ -705,7 +703,7 @@ std::error_code nano::handle_node_options (boost::program_options::variables_map
 				ec = nano::error_cli::invalid_arguments;
 			}
 		}
-		else
+		catch (std::exception const &)
 		{
 			database_write_lock_error (ec);
 		}
@@ -716,9 +714,9 @@ std::error_code nano::handle_node_options (boost::program_options::variables_map
 		auto node_flags = nano::inactive_node_flag_defaults ();
 		node_flags.read_only = false;
 		nano::update_flags (node_flags, vm);
-		nano::inactive_node node (data_path, node_flags);
-		if (!node.node->init_error ())
+		try
 		{
+			nano::inactive_node node (data_path, node_flags);
 			if (auto root_it = vm.find ("root"); root_it != vm.cend ())
 			{
 				auto root_str = root_it->second.as<std::string> ();
@@ -745,7 +743,7 @@ std::error_code nano::handle_node_options (boost::program_options::variables_map
 				std::cerr << "Either specify a single --root to clear or --all to clear all final votes (not recommended)" << std::endl;
 			}
 		}
-		else
+		catch (std::exception const &)
 		{
 			database_write_lock_error (ec);
 		}

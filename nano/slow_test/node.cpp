@@ -101,7 +101,6 @@ TEST (system, receive_while_synchronizing)
 		system.generate_mass_activity (count, *system.nodes[0]);
 		nano::keypair key;
 		auto node1 (std::make_shared<nano::node> (system.io_ctx, system.get_available_port (), nano::unique_path (), system.work));
-		ASSERT_FALSE (node1->init_error ());
 		auto wallet (node1->wallets.create (1));
 		wallet->insert_adhoc (nano::dev::genesis_key.prv); // For voting
 		ASSERT_EQ (key.pub, wallet->insert_adhoc (key.prv));
@@ -130,7 +129,6 @@ TEST (ledger, deep_account_compute)
 {
 	nano::logger logger;
 	auto store = nano::make_store (logger, nano::unique_path (), nano::dev::constants);
-	ASSERT_FALSE (store->init_error ());
 	nano::stats stats{ logger };
 	nano::ledger ledger (*store, nano::dev::constants, stats, logger);
 	auto transaction = ledger.tx_begin_write ();
@@ -554,7 +552,7 @@ TEST (store, pruned_load)
 	boost::unordered_set<nano::block_hash> hashes;
 	{
 		auto store = nano::make_store (logger, path, nano::dev::constants);
-		ASSERT_FALSE (store->init_error ());
+
 		for (auto i (0); i < num_pruned / batch_size; ++i)
 		{
 			{
@@ -585,7 +583,7 @@ TEST (store, pruned_load)
 	// Reinitialize store
 	{
 		auto store = nano::make_store (logger, path, nano::dev::constants);
-		ASSERT_FALSE (store->init_error ());
+
 		ASSERT_EQ (expected_result, manually_count_pruned_blocks (*store));
 	}
 }
@@ -1131,7 +1129,7 @@ TEST (confirmation_height, many_accounts_send_receive_self_no_elections)
 	nano::logger logger;
 	auto path (nano::unique_path ());
 	auto store = nano::make_store (logger, path, nano::dev::constants);
-	ASSERT_TRUE (!store->init_error ());
+
 	nano::stats stats{ logger };
 	nano::ledger ledger (*store, nano::dev::constants, stats, logger);
 	nano::store::write_queue write_database_queue;

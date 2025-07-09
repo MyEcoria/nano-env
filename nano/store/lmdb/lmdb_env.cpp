@@ -5,13 +5,13 @@
 
 #include <boost/system/error_code.hpp>
 
-nano::store::lmdb::env::env (bool & error_a, std::filesystem::path const & path_a, nano::store::lmdb::env::options options_a) :
+nano::store::lmdb::env::env (std::filesystem::path const & path_a, nano::store::lmdb::env::options options_a) :
 	database_path{ path_a }
 {
-	init (error_a, path_a, options_a);
+	init (path_a, options_a);
 }
 
-void nano::store::lmdb::env::init (bool & error_a, std::filesystem::path const & path_a, nano::store::lmdb::env::options options_a)
+void nano::store::lmdb::env::init (std::filesystem::path const & path_a, nano::store::lmdb::env::options options_a)
 {
 	debug_assert (path_a.extension () == ".ldb", "invalid filename extension for lmdb database file");
 
@@ -74,16 +74,15 @@ void nano::store::lmdb::env::init (bool & error_a, std::filesystem::path const &
 				throw std::runtime_error (message);
 			}
 			release_assert (success (status4), error_string (status4));
-			error_a = !success (status4);
 		}
 		else
 		{
-			error_a = true;
+			throw std::runtime_error ("Could not create database directory: " + error_mkdir.message ());
 		}
 	}
 	else
 	{
-		error_a = true;
+		throw std::runtime_error ("Invalid database path: path must have parent directory");
 	}
 }
 
