@@ -153,14 +153,8 @@ void nano::transport::tcp_listener::stop ()
 
 	for (auto & connection : connections_l)
 	{
-		if (auto socket = connection.socket.lock ())
-		{
-			socket->close ();
-		}
-		if (auto server = connection.server.lock ())
-		{
-			server->stop ();
-		}
+		connection.socket->close ();
+		connection.server->stop ();
 	}
 
 	logger.debug (nano::log::type::tcp_listener, "Stopped");
@@ -173,53 +167,75 @@ void nano::transport::tcp_listener::run_cleanup ()
 	{
 		stats.inc (nano::stat::type::tcp_listener, nano::stat::detail::cleanup);
 
-		cleanup ();
 		timeout ();
+		purge (lock);
+		debug_assert (!lock.owns_lock ());
+		lock.lock ();
 
 		condition.wait_for (lock, 1s, [this] () { return stopped.load (); });
 	}
 }
 
-void nano::transport::tcp_listener::cleanup ()
+void nano::transport::tcp_listener::purge (nano::unique_lock<nano::mutex> & lock)
 {
+	debug_assert (lock.owns_lock ());
 	debug_assert (!mutex.try_lock ());
-
-	// Erase dead connections
-	erase_if (connections, [this] (auto const & connection) {
-		if (connection.socket.expired () && connection.server.expired ())
-		{
-			stats.inc (nano::stat::type::tcp_listener, nano::stat::detail::erase_dead);
-			logger.debug (nano::log::type::tcp_listener, "Evicting dead connection: {}", connection.endpoint);
-			return true;
-		}
-		else
-		{
-			return false;
-		}
-	});
 
 	// Erase completed attempts
 	erase_if (attempts, [this] (auto const & attempt) {
 		return attempt.task.ready ();
 	});
+
+	// Erase dead connections
+	auto erased_connections = erase_if_and_collect (connections, [this] (auto const & connection) {
+		return !connection.socket->alive ();
+	});
+
+	lock.unlock ();
+
+	for (auto const & connection : erased_connections)
+	{
+		stats.inc (nano::stat::type::tcp_listener, nano::stat::detail::erase_dead);
+		logger.debug (nano::log::type::tcp_listener, "Evicting dead connection: {}", connection.endpoint);
+
+		connection.socket->close ();
+		connection.server->stop ();
+	}
 }
 
 void nano::transport::tcp_listener::timeout ()
 {
 	debug_assert (!mutex.try_lock ());
 
-	auto const cutoff = std::chrono::steady_clock::now () - config.connect_timeout;
+	auto const now = std::chrono::steady_clock::now ();
+	auto const connect_cutoff = now - config.connect_timeout;
+	auto const handshake_cutoff = now - config.handshake_timeout;
 
 	// Cancel timed out attempts
 	for (auto & attempt : attempts)
 	{
-		if (!attempt.task.ready () && attempt.start < cutoff)
+		if (!attempt.task.ready () && attempt.start < connect_cutoff)
 		{
-			attempt.task.cancel ();
-
 			stats.inc (nano::stat::type::tcp_listener, nano::stat::detail::attempt_timeout);
 			logger.debug (nano::log::type::tcp_listener, "Connection attempt timed out: {} (started {}s ago)",
-			attempt.endpoint, nano::log::seconds_delta (attempt.start));
+			attempt.endpoint,
+			nano::log::seconds_delta (attempt.start));
+
+			attempt.task.cancel (); // Cancel is non-blocking and will return immediately, safe to call under lock
+		}
+	}
+
+	// Cancel too long handshakes
+	for (auto & connection : connections)
+	{
+		if (connection.socket->type () == nano::transport::socket_type::undefined && connection.socket->get_time_connected () < handshake_cutoff)
+		{
+			stats.inc (nano::stat::type::tcp_listener, nano::stat::detail::handshake_timeout);
+			logger.debug (nano::log::type::tcp_listener, "Handshake timed out: {} (connected {}s ago)",
+			connection.endpoint,
+			nano::log::seconds_delta (connection.socket->get_time_connected ()));
+
+			connection.socket->close (); // Schedule socket close, this is non-blocking, safe to call under lock
 		}
 	}
 }
@@ -390,7 +406,7 @@ auto nano::transport::tcp_listener::accept_one (asio::ip::tcp::socket raw_socket
 	if (auto result = check_limits (remote_endpoint.address (), type); result != accept_result::accepted)
 	{
 		stats.inc (nano::stat::type::tcp_listener, nano::stat::detail::accept_rejected, to_stat_dir (type));
-		logger.debug (nano::log::type::tcp_listener, "Rejected connection from: {} reason: {} ({})",
+		logger.debug (nano::log::type::tcp_listener, "Rejected connection: {} reason: {} ({})",
 		remote_endpoint,
 		to_string (result),
 		to_string (type));
@@ -431,7 +447,7 @@ auto nano::transport::tcp_listener::accept_one (asio::ip::tcp::socket raw_socket
 	return { accept_result::accepted, socket, server };
 }
 
-auto nano::transport::tcp_listener::check_limits (asio::ip::address const & ip, connection_type type) -> accept_result
+auto nano::transport::tcp_listener::check_limits (asio::ip::address const & ip, connection_type type) const -> accept_result
 {
 	debug_assert (!mutex.try_lock ());
 
@@ -439,8 +455,6 @@ auto nano::transport::tcp_listener::check_limits (asio::ip::address const & ip, 
 	{
 		return accept_result::rejected;
 	}
-
-	cleanup ();
 
 	if (node.network.excluded_peers.check (ip)) // true => error
 	{
@@ -526,11 +540,7 @@ size_t nano::transport::tcp_listener::realtime_count () const
 	nano::lock_guard<nano::mutex> lock{ mutex };
 
 	return std::count_if (connections.begin (), connections.end (), [] (auto const & connection) {
-		if (auto socket = connection.socket.lock ())
-		{
-			return socket->is_realtime_connection ();
-		}
-		return false;
+		return connection.socket->type () == nano::transport::socket_type::realtime;
 	});
 }
 
@@ -539,11 +549,7 @@ size_t nano::transport::tcp_listener::bootstrap_count () const
 	nano::lock_guard<nano::mutex> lock{ mutex };
 
 	return std::count_if (connections.begin (), connections.end (), [] (auto const & connection) {
-		if (auto socket = connection.socket.lock ())
-		{
-			return socket->is_bootstrap_connection ();
-		}
-		return false;
+		return connection.socket->type () == nano::transport::socket_type::bootstrap;
 	});
 }
 
@@ -585,21 +591,17 @@ asio::ip::tcp::endpoint nano::transport::tcp_listener::endpoint () const
 	return { asio::ip::address_v6::loopback (), local.port () };
 }
 
-auto nano::transport::tcp_listener::sockets () const -> std::vector<std::shared_ptr<tcp_socket>>
+auto nano::transport::tcp_listener::all_sockets () const -> std::deque<std::shared_ptr<tcp_socket>>
 {
 	nano::lock_guard<nano::mutex> lock{ mutex };
-	auto r = connections
-	| std::views::transform ([] (auto const & connection) { return connection.socket.lock (); })
-	| std::views::filter ([] (auto const & socket) { return socket != nullptr; });
+	auto r = connections | std::views::transform ([] (auto const & connection) { return connection.socket; });
 	return { r.begin (), r.end () };
 }
 
-auto nano::transport::tcp_listener::servers () const -> std::vector<std::shared_ptr<tcp_server>>
+auto nano::transport::tcp_listener::all_servers () const -> std::deque<std::shared_ptr<tcp_server>>
 {
 	nano::lock_guard<nano::mutex> lock{ mutex };
-	auto r = connections
-	| std::views::transform ([] (auto const & connection) { return connection.server.lock (); })
-	| std::views::filter ([] (auto const & server) { return server != nullptr; });
+	auto r = connections | std::views::transform ([] (auto const & connection) { return connection.server; });
 	return { r.begin (), r.end () };
 }
 
