@@ -44,13 +44,12 @@ private:
 
 class tcp_channel final : public nano::transport::channel, public std::enable_shared_from_this<tcp_channel>
 {
-	friend class nano::transport::tcp_channels;
-
 public:
 	tcp_channel (nano::node &, std::shared_ptr<nano::transport::tcp_socket>);
 	~tcp_channel () override;
 
 	void close () override;
+	void close_async (); // Safe to call from io context
 
 	bool max (nano::transport::traffic_type traffic_type) override;
 	bool alive () const override;
@@ -74,7 +73,7 @@ private:
 
 	asio::awaitable<void> start_sending (nano::async::condition &);
 	asio::awaitable<void> run_sending (nano::async::condition &);
-	asio::awaitable<void> send_one (traffic_type, tcp_channel_queue::entry_t const &);
+	asio::awaitable<boost::system::error_code> send_one (traffic_type, tcp_channel_queue::entry_t const &);
 
 public:
 	std::shared_ptr<nano::transport::tcp_socket> socket;
@@ -89,8 +88,6 @@ private:
 	mutable nano::mutex mutex;
 	tcp_channel_queue queue;
 	std::atomic<size_t> allocated_bandwidth{ 0 };
-
-	std::atomic<bool> closed{ false };
 
 public: // Logging
 	void operator() (nano::object_stream &) const override;

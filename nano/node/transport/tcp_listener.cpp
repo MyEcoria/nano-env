@@ -154,7 +154,7 @@ void nano::transport::tcp_listener::stop ()
 	for (auto & connection : connections_l)
 	{
 		connection.socket->close ();
-		connection.server->stop ();
+		connection.server->close ();
 	}
 
 	logger.debug (nano::log::type::tcp_listener, "Stopped");
@@ -199,7 +199,7 @@ void nano::transport::tcp_listener::purge (nano::unique_lock<nano::mutex> & lock
 		logger.debug (nano::log::type::tcp_listener, "Evicting dead connection: {}", connection.endpoint);
 
 		connection.socket->close ();
-		connection.server->stop ();
+		connection.server->close ();
 	}
 }
 
@@ -235,7 +235,7 @@ void nano::transport::tcp_listener::timeout ()
 			connection.endpoint,
 			nano::log::seconds_delta (connection.socket->get_time_connected ()));
 
-			connection.socket->close (); // Schedule socket close, this is non-blocking, safe to call under lock
+			connection.socket->close_async (); // Schedule socket close, this is non-blocking, safe to call under lock
 		}
 	}
 }
@@ -306,9 +306,6 @@ auto nano::transport::tcp_listener::connect_impl (asio::ip::tcp::endpoint endpoi
 		{
 			stats.inc (nano::stat::type::tcp_listener, nano::stat::detail::connect_success, nano::stat::dir::out);
 			logger.debug (nano::log::type::tcp_listener, "Successfully connected to: {}", endpoint);
-
-			release_assert (result.server);
-			result.server->initiate_handshake ();
 		}
 		else
 		{
@@ -431,16 +428,13 @@ auto nano::transport::tcp_listener::accept_one (asio::ip::tcp::socket raw_socket
 	stats.inc (nano::stat::type::tcp_listener, nano::stat::detail::accept_success, to_stat_dir (type));
 	logger.debug (nano::log::type::tcp_listener, "Accepted connection: {} ({})", remote_endpoint, to_string (type));
 
-	auto socket = std::make_shared<nano::transport::tcp_socket> (node, std::move (raw_socket), remote_endpoint, local_endpoint, to_socket_endpoint (type));
-	auto server = std::make_shared<nano::transport::tcp_server> (socket, node.shared (), true);
+	auto socket = std::make_shared<nano::transport::tcp_socket> (node, std::move (raw_socket), to_socket_endpoint (type));
+	auto server = std::make_shared<nano::transport::tcp_server> (node, socket);
+	server->start ();
 
 	connections.emplace_back (connection{ type, remote_endpoint, socket, server });
 
 	lock.unlock ();
-
-	socket->set_timeout (node.network_params.network.idle_timeout);
-	socket->start ();
-	server->start ();
 
 	connection_accepted.notify (socket, server);
 

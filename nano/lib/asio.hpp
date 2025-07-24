@@ -1,9 +1,16 @@
 #pragma once
 
+#include <nano/boost/asio/ip/tcp.hpp>
+#include <nano/boost/asio/strand.hpp>
 #include <nano/boost/asio/write.hpp>
+
+#include <span>
 
 namespace nano
 {
+using buffer_view = std::span<const uint8_t>;
+using shared_buffer = std::shared_ptr<std::vector<uint8_t>>;
+
 class shared_const_buffer
 {
 public:
@@ -21,6 +28,11 @@ public:
 
 	std::size_t size () const;
 	std::vector<uint8_t> to_bytes () const;
+
+	operator nano::shared_buffer () const
+	{
+		return m_data;
+	}
 
 private:
 	std::shared_ptr<std::vector<uint8_t>> m_data;
